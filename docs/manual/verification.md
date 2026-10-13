@@ -25,6 +25,8 @@ PyTorch 2.11.0+cu128 and NVIDIA GeForce RTX 5070 Ti Laptop GPU.
 | Platform command files | Sunbird launchers and WSL/Sunbird guides passed Bash syntax checks |
 | Sunbird launcher environment | Passed: CPU/GPU interpreter precedence, environment-specific native runtimes, inherited preload entries, venv fallback, missing interpreter and command forwarding (`bash tests/check_sunbird_launchers.sh`, using host-library stand-ins under Git Bash) |
 | Sunbird login-node imports (user reported) | NGSolve 6.2.2406 and PyTorch 2.6.0+cu124 import successfully in this study's own Python 3.11 environment with its Conda libgcc/libstdc++ preloaded; package installation succeeded with the cache on scratch |
+| Sunbird compute-node CPU smoke (user reported) | Passed: job 8207500 was COMPLETED with exit code 0:0 in 73 seconds; generation, miniature tuning/scaling, validation/test and OOD evaluation finished with `Smoke test passed` |
+| Sunbird GPU compatibility (user reported) | Passed: gpu-info job 8207507 was COMPLETED with exit code 0:0 in 3 seconds on scs2041; CUDA initialization and a small matrix multiplication succeeded on NVIDIA A100-PCIE-40GB with driver 550.54.14 and PyTorch 2.6.0+cu124 |
 | Visual checks | Inspected the three-metric tuning heatmap, scaling plot and six-panel custom-shape preview |
 
 The CPU smoke uses only one grid cell per activation, one LR, two seeds and two
@@ -32,10 +34,21 @@ epochs. The default 25-cell activation grids are checked structurally in the
 regression suite; the full 53 tuning and 25 final training runs were not launched.
 These small runs verify execution, not final research accuracy or a sufficient
 production mesh/grid resolution. WSL execution and VS Code debugging were not
-exercised. The user verified Sunbird login-node imports after repairing the
-native runtime; a successful complete smoke on a Sunbird compute node is still
-pending. Cluster allocations and environment settings must be supplied at
-deployment.
+exercised. The user verified Sunbird login-node imports and the complete CPU
+smoke after repairing the native runtime. GPU compatibility was subsequently
+verified on an allocated A100 node. Full Sunbird GPU training and the production
+study remain unverified. The CUDA warning on the CPU smoke host does not describe
+the checked GPU node, whose driver is 550.54.14. Cluster allocations and
+environment settings must be supplied at deployment.
+
+The verified Sunbird GPU environment uses Python 3.11.17, NumPy 2.2.6,
+Matplotlib 3.11.2, NGSolve/Netgen 6.2.2406 and PyTorch 2.6.0+cu124 on
+Linux x86_64 with glibc 2.17. CUDA reports available, TF32 is disabled and
+deterministic Torch algorithms are enabled. The GPU check exercises device
+initialization and a small matrix multiplication, not training convergence.
+
+Sunbird smoke artifacts are on the cluster at
+`/scratch/s.y.k.sukumarapillai/DeepOnet_2D_OOD_Study/verification/study_smoke_1791929947826865155`.
 
 Current local artifacts (Git ignored):
 

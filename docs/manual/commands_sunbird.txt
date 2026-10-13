@@ -31,6 +31,8 @@ cp docs/manual/study.example.json study.json
 sbatch --account="scw7010" jobs/sunbird/gpu.sh gpu-info --config study.json
 sbatch --account="scw7010" jobs/sunbird/cpu.sh smoke
 # Check these jobs completed successfully before submitting the full study.
+# A CPU smoke may warn about CUDA during seed/hardware checks; check its final
+# exit status. GPU training needs a successful gpu-info job on a GPU node too.
 
 # 1b. Every NEW PuTTY/SSH login, from the existing repository root:
 # Run this session block; environment creation/install above are one-time steps.

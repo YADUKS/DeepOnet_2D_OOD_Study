@@ -181,9 +181,10 @@ in the error before changing versions. The Sunbird guide installs Conda's
 `libstdcxx-ng` and `libgcc-ng` runtimes and keeps the package cache on scratch.
 Both Slurm launchers preload available runtime libraries from their selected
 Python environment to handle older system C++ libraries. NGSolve 6.2.2406 and
-PyTorch 2.6.0+cu124 imports were verified on a Sunbird login node with this
-library selection; the complete study still requires a successful compute-node
-smoke job.
+PyTorch 2.6.0+cu124 imports and the complete miniature CPU workflow were verified
+on Sunbird with this library selection. The guide's `gpu-info` submission also
+passed on an A100 40 GB node with NVIDIA driver 550.54.14. Run this GPU check when
+deploying to a different node type or changing the PyTorch/CUDA build.
 
 ## 2. Check the installation and choose settings
 
@@ -450,9 +451,11 @@ larger study. Details are in the [protocol guide](docs/manual/study_workflow.md)
 
 The workflow passed **27 regression tests**, the miniature CPU study, GPU checks,
 a new-shape example and relocated-data evaluation. Isolated CPU/GPU launcher
-checks also passed (`bash tests/check_sunbird_launchers.sh`). WSL execution and
-a successful Sunbird compute-node smoke remain unverified. Full research runs
-have not been performed. See the
+checks also passed (`bash tests/check_sunbird_launchers.sh`). The Sunbird CPU
+smoke completed successfully (job 8207500, exit code 0:0), and the A100 GPU
+compatibility check passed (job 8207507, exit code 0:0). WSL execution and full
+Sunbird GPU training remain unverified. Full research runs have not been
+performed. See the
 [verification record](docs/manual/verification.md).
 
 Historical checkpoints belong to their original workflow and cannot resume the
