@@ -1,6 +1,7 @@
 """Generation rejects overlap before solving and reuses completed FE work."""
 from dataclasses import replace
 from pathlib import Path
+import json
 import tempfile
 import unittest
 import numpy as np
@@ -9,6 +10,43 @@ from src.data.generation import generate_family
 from src.fem.geometry_spec import GeometryCase
 
 class GenerationTests(unittest.TestCase):
+    def test_dependency_import_failure_aborts_before_retrying_candidates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cfg = Settings(data_root=str(Path(directory)/'data'))
+            path = Path(cfg.geometry_dataset_path('circle', 2))
+            def planner(cfg, family, quota, role):
+                return [GeometryCase('circle', .01+i*.001, .01, parameters={'diameter': .008}, candidate_id=i)
+                        for i in range(3)]
+            calls = []
+            def solve(cfg, case):
+                calls.append(case.candidate_id)
+                raise ImportError('GLIBCXX_3.4.20 not found')
+            with self.assertRaisesRegex(RuntimeError, 'Cannot load a dependency.*GLIBCXX'):
+                generate_family(cfg, 'circle', path, {'val': 2}, planner, solve)
+            self.assertEqual(calls, [0])
+            errors = json.loads((path.parent/'generation_failures.json').read_text())
+            self.assertEqual(len(errors), 1)
+            self.assertIn('ImportError: GLIBCXX', errors[0]['error'])
+            self.assertFalse(path.exists())
+
+    def test_exhausted_candidates_report_the_first_numerical_rejection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cfg = Settings(data_root=str(Path(directory)/'data'))
+            path = Path(cfg.geometry_dataset_path('circle', 2))
+            def planner(cfg, family, quota, role):
+                return [GeometryCase('circle', .01+i*.001, .01, parameters={'diameter': .008}, candidate_id=i)
+                        for i in range(3)]
+            calls = []
+            def solve(cfg, case):
+                calls.append(case.candidate_id)
+                raise ValueError('Nonfinite FE temperature')
+            with self.assertRaisesRegex(RuntimeError, 'Only 0/2.*First rejection: ValueError: Nonfinite'):
+                generate_family(cfg, 'circle', path, {'val': 2}, planner, solve)
+            self.assertEqual(calls, [0, 1, 2])
+            errors = json.loads((path.parent/'generation_failures.json').read_text())
+            self.assertEqual(len(errors), 3)
+            self.assertFalse(path.exists())
+
     def test_overlap_is_skipped_before_solve_and_extension_uses_cache(self):
         with tempfile.TemporaryDirectory() as directory:
             cfg = Settings(data_root=str(Path(directory)/'data'), Nx=2, Ny=2,

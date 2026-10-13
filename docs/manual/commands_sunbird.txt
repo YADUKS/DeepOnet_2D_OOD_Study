@@ -6,7 +6,11 @@
 # 1. Environment (once). Use a module available on your account.
 module load anaconda/2024.06
 source "$(conda info --base)/etc/profile.d/conda.sh"
-conda create --prefix "$PWD/env" python=3.11 -y --override-channels -c conda-forge
+# Keep downloads/extraction on scratch; home-directory cache I/O can fail.
+export CONDA_PKGS_DIRS="/scratch/$USER/conda_pkgs"
+mkdir -p "$CONDA_PKGS_DIRS"
+# Include native runtimes needed by NGSolve's pip wheels on older cluster nodes.
+conda create --prefix "$PWD/env" python=3.11 libstdcxx-ng libgcc-ng -y --override-channels -c conda-forge
 conda activate "$PWD/env"
 python -m pip install --upgrade pip
 # Use prebuilt wheels: the system GCC may be too old to compile NumPy.
@@ -19,6 +23,7 @@ python -m pip check
 # python -m pip config list
 # Choose package versions for that platform before proceeding to the jobs.
 export STUDY_ENV="$PWD/env"
+export STUDY_PYTHON="$STUDY_ENV/bin/python"
 export STUDY_ACCOUNT="scw7010"
 mkdir -p outputs/slurm
 cp docs/manual/study.example.json study.json
@@ -31,15 +36,30 @@ sbatch --account="scw7010" jobs/sunbird/cpu.sh smoke
 # Run this session block; environment creation/install above are one-time steps.
 module load anaconda/2024.06
 source "$(conda info --base)/etc/profile.d/conda.sh"
+export CONDA_PKGS_DIRS="/scratch/$USER/conda_pkgs"
+mkdir -p "$CONDA_PKGS_DIRS"
 conda activate "$PWD/env"
 export STUDY_ENV="$PWD/env"
+export STUDY_PYTHON="$STUDY_ENV/bin/python"
 export STUDY_ACCOUNT="scw7010"
 # Activation does not automatically set these project-specific variables.
 # The launchers use STUDY_PYTHON, then STUDY_ENV, then env/bin/python if present,
 # then .venv/bin/python. Explicit invalid paths produce an error.
+# Each launcher preloads available libgcc_s/libstdc++ from that interpreter's
+# environment for its own job, preserving any inherited LD_PRELOAD entries.
+# The "Native runtime" line in the log shows the libraries selected.
 # GEN/OOD and other job-ID variables belong to the current shell session too.
 # To resume an existing pipeline, recover IDs with squeue/sacct; do not assume
 # GEN survived logout, and inspect failed generation logs before resubmitting.
+# Check this project's own installation before submitting:
+# "$STUDY_PYTHON" -m pip show ngsolve netgen-mesher
+# env LD_PRELOAD="$STUDY_ENV/lib/libgcc_s.so.1:$STUDY_ENV/lib/libstdc++.so.6" "$STUDY_PYTHON" -c "import ngsolve; print(ngsolve.__version__)"
+# env LD_PRELOAD="$STUDY_ENV/lib/libgcc_s.so.1:$STUDY_ENV/lib/libstdc++.so.6" "$STUDY_PYTHON" -c "import torch; print(torch.__version__)"
+# To add runtimes to an existing environment after a GLIBCXX import error:
+# conda install --prefix "$STUDY_ENV" --override-channels -c conda-forge libstdcxx-ng libgcc-ng -y
+# Wait for a successful transaction before testing or submitting another job.
+# Verify the interpreter printed in the job log matches the selected environment.
+# Exported variables are captured when submitting; changed values affect new jobs.
 
 # 2. Generate once, then dependent data checks/OOD generation.
 GEN=$(sbatch --parsable --account="$STUDY_ACCOUNT" jobs/sunbird/cpu.sh generate --config study.json)
@@ -84,4 +104,7 @@ squeue -u "$USER"
 # Repeat interrupted generate/tune/train-scaling submissions to resume.
 # Failed afterok dependencies remain pending: inspect failures, then resubmit
 # the failed stage and downstream jobs with the new dependency IDs.
-# In a new login, re-export STUDY_ENV and STUDY_ACCOUNT.
+# Generation ImportErrors stop immediately with dependency details. Numerical
+# rejections are recorded in generation_failures.json; an exhausted pool prints
+# its first rejection and the full diagnostic-file path in the job log.
+# In a new login, re-export STUDY_ENV, STUDY_PYTHON and STUDY_ACCOUNT.

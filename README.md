@@ -177,8 +177,13 @@ python -m pip check
 
 Pip selects compatible wheels within the configured version bounds. If it reports
 no matching binary distribution, inspect the Python/OS version and package named
-in the error before changing versions. This installation path has not yet been
-validated on a live Sunbird node.
+in the error before changing versions. The Sunbird guide installs Conda's
+`libstdcxx-ng` and `libgcc-ng` runtimes and keeps the package cache on scratch.
+Both Slurm launchers preload available runtime libraries from their selected
+Python environment to handle older system C++ libraries. NGSolve 6.2.2406 and
+PyTorch 2.6.0+cu124 imports were verified on a Sunbird login node with this
+library selection; the complete study still requires a successful compute-node
+smoke job.
 
 ## 2. Check the installation and choose settings
 
@@ -328,7 +333,8 @@ Run it on an otherwise idle device for interpretable timings.
 
 The [Sunbird guide](docs/manual/commands_sunbird.txt) provides the full submission
 sequence, including `afterok` dependencies between generation, tuning, selection
-and final training. After setting `STUDY_ENV` and `STUDY_ACCOUNT` as described there:
+and final training. After setting `STUDY_ENV`, `STUDY_PYTHON` and `STUDY_ACCOUNT`
+as described there:
 
 ```bash
 mkdir -p outputs/slurm
@@ -442,9 +448,11 @@ larger study. Details are in the [protocol guide](docs/manual/study_workflow.md)
 - **Process separation:** FE generation and neural-network stages run separately
   to avoid native-library conflicts in affected Windows environments.
 
-The workflow passed **25 regression tests**, the miniature CPU study, GPU checks,
-a new-shape example and relocated-data evaluation. WSL and live Sunbird execution
-remain unverified. Full research runs have not been performed. See the
+The workflow passed **27 regression tests**, the miniature CPU study, GPU checks,
+a new-shape example and relocated-data evaluation. Isolated CPU/GPU launcher
+checks also passed (`bash tests/check_sunbird_launchers.sh`). WSL execution and
+a successful Sunbird compute-node smoke remain unverified. Full research runs
+have not been performed. See the
 [verification record](docs/manual/verification.md).
 
 Historical checkpoints belong to their original workflow and cannot resume the

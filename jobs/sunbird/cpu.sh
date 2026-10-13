@@ -32,6 +32,19 @@ if [[ ! -x "$PYTHON" ]]; then
     echo "Python environment missing: $PYTHON. Set STUDY_ENV or STUDY_PYTHON." >&2
     exit 2
 fi
+# Pip's native extensions may otherwise load Sunbird's older system C++ runtime.
+# Select libraries from the chosen interpreter's own environment for this job.
+PYTHON_PREFIX="$(cd -- "$(dirname -- "$PYTHON")/.." && pwd)"
+NATIVE_LIBS=""
+for runtime_library in libgcc_s.so.1 libstdc++.so.6; do
+    if [[ -f "$PYTHON_PREFIX/lib/$runtime_library" ]]; then
+        NATIVE_LIBS="${NATIVE_LIBS:+$NATIVE_LIBS:}$PYTHON_PREFIX/lib/$runtime_library"
+    fi
+done
+if [[ -n "$NATIVE_LIBS" ]]; then
+    echo "Native runtime: $NATIVE_LIBS"
+    export LD_PRELOAD="$NATIVE_LIBS${LD_PRELOAD:+:$LD_PRELOAD}"
+fi
 export MPLBACKEND=Agg
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-4}"
 echo "Job ${SLURM_JOB_ID:-local} on $(hostname): $PYTHON -u run.py $*"

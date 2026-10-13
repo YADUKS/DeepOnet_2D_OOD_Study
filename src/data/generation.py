@@ -75,6 +75,16 @@ def generate_family(cfg, family, path, quotas, planner, solve, *, ood=False):
                     np.savez(temporary, sdf=sdf, mask=mask, temperature=temperature,
                              diagnostics=[json.dumps(diagnostics)], fe_file=[Path(fe_path).name])
                     temporary.replace(cache)
+            except ImportError as error:
+                # Missing native/Python dependencies cannot be fixed by resampling.
+                failures.append({"role": role, "candidate_id": case.candidate_id,
+                                 "error": f"{type(error).__name__}: {error}"})
+                failure_path = path.parent / "generation_failures.json"
+                failure_path.write_text(json.dumps(failures, indent=2), encoding="utf-8")
+                raise RuntimeError(
+                    f"Cannot load a dependency while generating {family}/{role}: {error}. "
+                    f"Check the job's Python environment. Details: {failure_path}"
+                ) from error
             except Exception as error:
                 failures.append({"role": role, "candidate_id": case.candidate_id,
                                  "error": f"{type(error).__name__}: {error}"})
@@ -94,8 +104,14 @@ def generate_family(cfg, family, path, quotas, planner, solve, *, ood=False):
             accepted += 1
             print(f"[{family}/{role} {accepted}/{quota}] candidate={case.candidate_id}", flush=True)
         if accepted != quota:
-            (path.parent / "generation_failures.json").write_text(json.dumps(failures, indent=2), encoding="utf-8")
-            raise RuntimeError(f"Only {accepted}/{quota} valid {family}/{role} cases. Inspect generation_failures.json.")
+            failure_path = path.parent / "generation_failures.json"
+            failure_path.write_text(json.dumps(failures, indent=2), encoding="utf-8")
+            role_failures = [failure for failure in failures if failure["role"] == role]
+            detail = f" First rejection: {role_failures[0]['error']}." if role_failures else ""
+            raise RuntimeError(
+                f"Only {accepted}/{quota} valid {family}/{role} cases.{detail} "
+                f"Details: {failure_path}"
+            )
     strings = {"metadata_json", "fe_paths", "roles", "geometry_keys"}
     integers = {"candidate_ids", "role_case_ids"}
     packed = {name: np.asarray(values, dtype=str if name in strings else np.int64 if name in integers else np.float32)

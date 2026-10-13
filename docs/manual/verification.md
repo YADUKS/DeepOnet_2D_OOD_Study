@@ -6,10 +6,11 @@ PyTorch 2.11.0+cu128 and NVIDIA GeForce RTX 5070 Ti Laptop GPU.
 
 | Current workflow check | Result |
 |---|---|
-| 25 automated regression tests | Passed: 6 design, 4 protocol, 1 generation/cache, 3 CLI, 1 model, 9 workflow, 1 FE solver |
+| 27 automated regression tests | Passed: 6 design, 4 protocol, 3 generation/cache/diagnostics, 3 CLI, 1 model, 9 workflow, 1 FE solver |
 | Complete CPU study smoke | Passed: generation, composition, Tanh/GELU/LR stages and selection, two sizes × two seeds, summaries, scaling, figures and OOD |
 | Geometry separation | Passed: canonical symmetry identities, duplicated geometry with different row IDs rejected at load, duplicate candidate rejected before FE solve |
 | FE reuse and extension | Passed: extending a pool solves only new cases; repeating completed generation performs no new solves |
+| Generation failure diagnostics | Passed: missing dependencies stop at the first candidate and preserve the diagnostic file; exhausted numerical candidates show the first rejection and full file path |
 | Training prefix/scalers | Passed: nested per-family prefixes, fixed holdouts, training-only scalers, full-pool temperature scale frozen across sizes |
 | Checkpoint recovery | Passed: resumed CPU training exactly matches uninterrupted weights and loss history; changed run settings rejected |
 | Gradient chunking | Passed: chunked and whole-grid updates agree within numerical tolerance |
@@ -22,15 +23,19 @@ PyTorch 2.11.0+cu128 and NVIDIA GeForce RTX 5070 Ti Laptop GPU.
 | Generation identity stability | Passed: loading data preserves source/OOD identifiers, without rounding physical configuration values |
 | Stored FE preview and ANSYS export | Passed with the new FE cache; exported star STL is watertight |
 | Platform command files | Sunbird launchers and WSL/Sunbird guides passed Bash syntax checks |
+| Sunbird launcher environment | Passed: CPU/GPU interpreter precedence, environment-specific native runtimes, inherited preload entries, venv fallback, missing interpreter and command forwarding (`bash tests/check_sunbird_launchers.sh`, using host-library stand-ins under Git Bash) |
+| Sunbird login-node imports (user reported) | NGSolve 6.2.2406 and PyTorch 2.6.0+cu124 import successfully in this study's own Python 3.11 environment with its Conda libgcc/libstdc++ preloaded; package installation succeeded with the cache on scratch |
 | Visual checks | Inspected the three-metric tuning heatmap, scaling plot and six-panel custom-shape preview |
 
 The CPU smoke uses only one grid cell per activation, one LR, two seeds and two
 epochs. The default 25-cell activation grids are checked structurally in the
 regression suite; the full 53 tuning and 25 final training runs were not launched.
 These small runs verify execution, not final research accuracy or a sufficient
-production mesh/grid resolution. WSL execution, VS Code debugging and live
-Sunbird jobs were not exercised. Cluster allocations and environment settings
-must be supplied at deployment.
+production mesh/grid resolution. WSL execution and VS Code debugging were not
+exercised. The user verified Sunbird login-node imports after repairing the
+native runtime; a successful complete smoke on a Sunbird compute node is still
+pending. Cluster allocations and environment settings must be supplied at
+deployment.
 
 Current local artifacts (Git ignored):
 
@@ -43,7 +48,7 @@ Current local artifacts (Git ignored):
 
 The additional pre-workflow source backup is outside this repository:
 `../migration_backups/DeepOnet_2D_OOD_Study_before_workflow_20261013_181134.zip`.
-No production study, GitHub upload or Sunbird submission was performed.
+No production study was run as part of the local verification.
 
 ## Earlier restructuring checks (historical)
 
