@@ -1,7 +1,7 @@
 # SUNBIRD: Bash on the cluster. Submit from the repository root on scratch.
 # Copy/clone the completed repository here; use your own Git URL after upload.
-# The launchers default to compute (CPU) and accel_ai / A100 (GPU), as in the
-# reference. Verify these and your account against your current allocation.
+# The launchers default to compute (CPU) and accel_ai / A100 (GPU)
+# Verify these and your account against your current allocation.
 
 # 1. Environment (once). Use a module available on your account.
 module load anaconda/2024.06
@@ -19,47 +19,47 @@ python -m pip check
 # python -m pip config list
 # Choose package versions for that platform before proceeding to the jobs.
 export STUDY_ENV="$PWD/env"
-export STUDY_ACCOUNT="YOUR_ALLOCATION"
+export STUDY_ACCOUNT="scw7010"
 mkdir -p outputs/slurm
 cp docs/manual/study.example.json study.json
 # Edit study.json before submission. Every submitted command uses this file.
-sbatch --account="$STUDY_ACCOUNT" jobs/sunbird/gpu.sh gpu-info --config study.json
-sbatch --account="$STUDY_ACCOUNT" jobs/sunbird/cpu.sh smoke
+sbatch --account="scw7010" jobs/sunbird/gpu.sh gpu-info --config study.json
+sbatch --account="scw7010" jobs/sunbird/cpu.sh smoke
 # Check these jobs completed successfully before submitting the full study.
 
 # 2. Generate once, then dependent data checks/OOD generation.
 GEN=$(sbatch --parsable --account="$STUDY_ACCOUNT" jobs/sunbird/cpu.sh generate --config study.json)
 OOD=$(sbatch --parsable --account="$STUDY_ACCOUNT" --dependency="afterok:$GEN" jobs/sunbird/cpu.sh generate-ood --config study.json)
-sbatch --account="$STUDY_ACCOUNT" --dependency="afterok:$GEN" jobs/sunbird/cpu.sh plot-sampling --config study.json
-sbatch --account="$STUDY_ACCOUNT" --dependency="afterok:$GEN" jobs/sunbird/cpu.sh preview --config study.json --family circle --case 0
-sbatch --account="$STUDY_ACCOUNT" --dependency="afterok:$GEN" jobs/sunbird/cpu.sh mesh-check --config study.json
+sbatch --account="scw7010" --dependency="afterok:$GEN" jobs/sunbird/cpu.sh plot-sampling --config study.json
+sbatch --account="scw7010" --dependency="afterok:$GEN" jobs/sunbird/cpu.sh preview --config study.json --family circle --case 0
+sbatch --account="scw7010" --dependency="afterok:$GEN" jobs/sunbird/cpu.sh mesh-check --config study.json
 
 # 3. Tanh grid: 25 cells, one cell per GPU task (seeds within a cell run serially).
-TANH=$(sbatch --parsable --account="$STUDY_ACCOUNT" --dependency="afterok:$GEN" --array=0-24 --output=outputs/slurm/tanh_%A_%a.out jobs/sunbird/gpu.sh tune --config study.json --stage-name grid)
-TANH_SELECT=$(sbatch --parsable --account="$STUDY_ACCOUNT" --dependency="afterok:$TANH" jobs/sunbird/cpu.sh tune-select --config study.json --stage-name grid)
+TANH=$(sbatch --parsable --account="scw7010" --dependency="afterok:$GEN" --array=0-24 --output=outputs/slurm/tanh_%A_%a.out jobs/sunbird/gpu.sh tune --config study.json --stage-name grid)
+TANH_SELECT=$(sbatch --parsable --account="scw7010" --dependency="afterok:$TANH" jobs/sunbird/cpu.sh tune-select --config study.json --stage-name grid)
 
 # 4. GELU grid, followed by validation-only selection.
-GELU=$(sbatch --parsable --account="$STUDY_ACCOUNT" --dependency="afterok:$TANH_SELECT" --array=0-24 --output=outputs/slurm/gelu_%A_%a.out jobs/sunbird/gpu.sh tune --config study.json --stage-name grid_gelu)
-GELU_SELECT=$(sbatch --parsable --account="$STUDY_ACCOUNT" --dependency="afterok:$GELU" jobs/sunbird/cpu.sh tune-select --config study.json --stage-name grid_gelu)
+GELU=$(sbatch --parsable --account="scw7010" --dependency="afterok:$TANH_SELECT" --array=0-24 --output=outputs/slurm/gelu_%A_%a.out jobs/sunbird/gpu.sh tune --config study.json --stage-name grid_gelu)
+GELU_SELECT=$(sbatch --parsable --account="scw7010" --dependency="afterok:$GELU" jobs/sunbird/cpu.sh tune-select --config study.json --stage-name grid_gelu)
 
 # 5. Three learning rates at the better architecture/activation winner.
-LR=$(sbatch --parsable --account="$STUDY_ACCOUNT" --dependency="afterok:$GELU_SELECT" --array=0-2 --output=outputs/slurm/lr_%A_%a.out jobs/sunbird/gpu.sh tune --config study.json --stage-name lr)
-LR_SELECT=$(sbatch --parsable --account="$STUDY_ACCOUNT" --dependency="afterok:$LR" jobs/sunbird/cpu.sh tune-select --config study.json --stage-name lr)
+LR=$(sbatch --parsable --account="scw7010" --dependency="afterok:$GELU_SELECT" --array=0-2 --output=outputs/slurm/lr_%A_%a.out jobs/sunbird/gpu.sh tune --config study.json --stage-name lr)
+LR_SELECT=$(sbatch --parsable --account="scw7010" --dependency="afterok:$LR" jobs/sunbird/cpu.sh tune-select --config study.json --stage-name lr)
 
 # 6. Five sizes x five seeds. Task k uses sizes[k//5], seeds[k%5].
 # Change array bounds if changing the number of sizes/seeds/grid cells.
-SCALE=$(sbatch --parsable --account="$STUDY_ACCOUNT" --dependency="afterok:$LR_SELECT" --array=0-24 --output=outputs/slurm/scaling_%A_%a.out jobs/sunbird/gpu.sh train-scaling --config study.json)
+SCALE=$(sbatch --parsable --account="scw7010" --dependency="afterok:$LR_SELECT" --array=0-24 --output=outputs/slurm/scaling_%A_%a.out jobs/sunbird/gpu.sh train-scaling --config study.json)
 
 # 7. Reports after every final run has completed.
-sbatch --account="$STUDY_ACCOUNT" --dependency="afterok:$SCALE" jobs/sunbird/cpu.sh scaling-report --config study.json
+sbatch --account="scw7010" --dependency="afterok:$SCALE" jobs/sunbird/cpu.sh scaling-report --config study.json
 for n in 50 100 200 400 800; do
-    sbatch --account="$STUDY_ACCOUNT" --dependency="afterok:$SCALE" jobs/sunbird/cpu.sh summarize --config study.json --train-size "$n"
+    sbatch --account="scw7010" --dependency="afterok:$SCALE" jobs/sunbird/cpu.sh summarize --config study.json --train-size "$n"
 done
 
 # 8. Figures, OOD evaluation and timings wait for the required completed jobs.
-sbatch --account="$STUDY_ACCOUNT" --dependency="afterok:$SCALE" jobs/sunbird/gpu.sh plot --config study.json --run-name scale_deeponet_N0800_seed321
-sbatch --account="$STUDY_ACCOUNT" --dependency="afterok:$SCALE:$OOD" jobs/sunbird/gpu.sh evaluate-ood --config study.json --run-name scale_deeponet_N0800_seed321
-sbatch --account="$STUDY_ACCOUNT" --dependency="afterok:$SCALE" jobs/sunbird/gpu.sh benchmark --config study.json --run-name scale_deeponet_N0800_seed321
+sbatch --account="scw7010" --dependency="afterok:$SCALE" jobs/sunbird/gpu.sh plot --config study.json --run-name scale_deeponet_N0800_seed321
+sbatch --account="scw7010" --dependency="afterok:$SCALE:$OOD" jobs/sunbird/gpu.sh evaluate-ood --config study.json --run-name scale_deeponet_N0800_seed321
+sbatch --account="scw7010" --dependency="afterok:$SCALE" jobs/sunbird/gpu.sh benchmark --config study.json --run-name scale_deeponet_N0800_seed321
 
 # 9. Monitor. Replace JOB_NUMBER with an actual submitted job ID.
 squeue -u "$USER"

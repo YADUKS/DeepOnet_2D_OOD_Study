@@ -167,6 +167,19 @@ The default `device = "auto"` uses CUDA when available and otherwise uses CPU.
 Use `--device cpu` or `--device cuda` to request a specific device. FE generation
 runs on the CPU. Cluster setup is covered in the [Sunbird guide](docs/manual/commands_sunbird.txt).
 
+On Sunbird, use binary packages to avoid building NumPy with the system compiler:
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install --no-cache-dir --only-binary=:all: -r requirements.txt
+python -m pip check
+```
+
+Pip selects compatible wheels within the configured version bounds. If it reports
+no matching binary distribution, inspect the Python/OS version and package named
+in the error before changing versions. This installation path has not yet been
+validated on a live Sunbird node.
+
 ## 2. Check the installation and choose settings
 
 ```text
