@@ -1,7 +1,7 @@
 # SUNBIRD: Bash on the cluster. Submit from the repository root on scratch.
 # Copy/clone the completed repository here; use your own Git URL after upload.
-# The launchers default to compute (CPU) and accel_ai / A100 (GPU), as in the
-# reference. Verify these and your account against your current allocation.
+# The launchers default to compute (CPU) and accel_ai / A100 (GPU)
+# Verify these and your account against your current allocation.
 
 # 1. Environment (once). Use a module available on your account.
 module load anaconda/2024.06
