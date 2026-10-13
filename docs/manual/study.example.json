@@ -1,0 +1,151 @@
+{
+  "generate_geometry_families": [
+    "circle",
+    "ellipse",
+    "rectangle",
+    "triangle",
+    "rhombus",
+    "trapezoid",
+    "regular_polygon",
+    "t_shape",
+    "cross_shape"
+  ],
+  "geometry_cases_per_family": {
+    "circle": 800,
+    "ellipse": 800,
+    "rectangle": 800,
+    "triangle": 800,
+    "rhombus": 800,
+    "trapezoid": 800,
+    "regular_polygon": 800,
+    "t_shape": 800,
+    "cross_shape": 800
+  },
+  "training_geometry_source_sizes": {
+    "circle": 800,
+    "ellipse": 800,
+    "rectangle": 800,
+    "triangle": 800,
+    "rhombus": 800,
+    "trapezoid": 800,
+    "regular_polygon": 800,
+    "t_shape": 800,
+    "cross_shape": 800
+  },
+  "training_geometry_counts": {
+    "circle": 800,
+    "ellipse": 800,
+    "rectangle": 800,
+    "triangle": 800,
+    "rhombus": 800,
+    "trapezoid": 800,
+    "regular_polygon": 800,
+    "t_shape": 800,
+    "cross_shape": 800
+  },
+  "validation_cases_per_family": {
+    "circle": 50,
+    "ellipse": 50,
+    "rectangle": 50,
+    "triangle": 50,
+    "rhombus": 50,
+    "trapezoid": 50,
+    "regular_polygon": 50,
+    "t_shape": 50,
+    "cross_shape": 50
+  },
+  "test_cases_per_family": {
+    "circle": 50,
+    "ellipse": 50,
+    "rectangle": 50,
+    "triangle": 50,
+    "rhombus": 50,
+    "trapezoid": 50,
+    "regular_polygon": 50,
+    "t_shape": 50,
+    "cross_shape": 50
+  },
+  "composed_evaluation_families": [
+    "circle",
+    "ellipse",
+    "rectangle",
+    "triangle",
+    "rhombus",
+    "trapezoid",
+    "regular_polygon",
+    "t_shape",
+    "cross_shape"
+  ],
+  "generate_ood_families": [
+    "star",
+    "aircraft",
+    "leaf",
+    "fin_like"
+  ],
+  "ood_evaluation_families": [
+    "star",
+    "aircraft",
+    "leaf",
+    "fin_like"
+  ],
+  "ood_cases_per_family": {
+    "star": 20,
+    "aircraft": 20,
+    "leaf": 20,
+    "fin_like": 20
+  },
+  "ood_evaluation_source_sizes": {
+    "star": 20,
+    "aircraft": 20,
+    "leaf": 20,
+    "fin_like": 20
+  },
+  "scaling_sizes": [
+    50,
+    100,
+    200,
+    400,
+    800
+  ],
+  "tuning_size": 200,
+  "tuning_seeds": [
+    123
+  ],
+  "study_seeds": [
+    321,
+    777,
+    2026,
+    31415,
+    27182
+  ],
+  "tuning_layers": [
+    2,
+    4,
+    6,
+    8,
+    10
+  ],
+  "tuning_neurons": [
+    10,
+    20,
+    40,
+    80,
+    160
+  ],
+  "tuning_learning_rates": [
+    0.0003,
+    0.001,
+    0.003
+  ],
+  "tuning_epochs": 2000,
+  "epochs": 5000,
+  "batch_size": 8,
+  "lr": 0.001,
+  "latent_dim": 128,
+  "early_stop_patience": 800,
+  "scheduler_patience": 200,
+  "scheduler_factor": 0.5,
+  "checkpoint_every": 50,
+  "point_chunk": 2048,
+  "device": "auto"
+}

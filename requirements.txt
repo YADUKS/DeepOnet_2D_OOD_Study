@@ -1,0 +1,5 @@
+# Direct runtime dependencies. Install the required CPU/CUDA Torch build first.
+numpy>=1.26
+matplotlib>=3.8
+ngsolve>=6.2.2406
+torch>=2.2

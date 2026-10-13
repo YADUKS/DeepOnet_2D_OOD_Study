@@ -1,0 +1,41 @@
+{
+  "purpose": "Documentation illustration; no research accuracy claim.",
+  "hero_family": "cross_shape",
+  "hero_metadata": {
+    "candidate_id": 0,
+    "case_id": 0,
+    "cx": 0.028375367635454438,
+    "cy": 0.009026169293440139,
+    "family": "cross_shape",
+    "group": "training",
+    "parameters": {
+      "horizontal_thickness_ratio": 0.20534176138877863,
+      "overall_height": 0.008104633663037032,
+      "overall_width": 0.013445287303643126,
+      "vertical_width_ratio": 0.2528790003604672
+    },
+    "rotation": 4.9219813177792755,
+    "scale": 1.0,
+    "seed": 1080042
+  },
+  "hero_fe_sha256": "fc7998770fb3d3ce0fe8d0515018a216c2753fc9d6296b7d7be792dd0bef5d4f",
+  "sdf_display": "Recomputed geometric signed distance on a 240 x 140 display grid, in mm.",
+  "temperature_display": "Gouraud interpolation of stored FE mesh vertex temperatures in K.",
+  "training_families": [
+    "circle",
+    "ellipse",
+    "rectangle",
+    "triangle",
+    "rhombus",
+    "trapezoid",
+    "regular_polygon",
+    "t_shape",
+    "cross_shape"
+  ],
+  "ood_families": [
+    "star",
+    "aircraft",
+    "leaf",
+    "fin_like"
+  ]
+}

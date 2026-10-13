@@ -1,0 +1,65 @@
+# WSL / LINUX / VS CODE: Bash, from the repository root.
+# Keep the working checkout on the Linux filesystem for large datasets.
+# Install a compatible Python and venv support before these commands.
+
+# 1. Environment (once; use python3.11 instead if selecting that installation).
+python3 -m venv .venv
+source .venv/bin/activate
+# Install the appropriate CPU/CUDA torch build from https://pytorch.org/get-started/locally/
+python -m pip install -r requirements.txt
+python tests/run_all.py
+python run.py gpu-info
+python run.py smoke
+cp docs/manual/study.example.json study.json
+# Edit the counts/families before generation; use the same JSON throughout.
+
+# 2. Generate once; includes composition and overlap checks.
+python run.py generate --config study.json
+python run.py generate-ood --config study.json
+python run.py plot-sampling --config study.json
+python run.py preview --config study.json --family circle --case 0
+python run.py mesh-check --config study.json
+
+# 3. Optional short run (separate name; excluded from the final study).
+python run.py train --config study.json --train-size 200 --seed 321 --run-name try_deeponet --epochs 300
+python run.py evaluate --config study.json --run-name try_deeponet --split val
+python run.py plot --config study.json --run-name try_deeponet --split val
+
+# 4. Tune at the configured count per family, in this order.
+python run.py tune --config study.json --stage-name grid
+python run.py tune-select --config study.json --stage-name grid
+python run.py tune --config study.json --stage-name grid_gelu
+python run.py tune-select --config study.json --stage-name grid_gelu
+python run.py tune --config study.json --stage-name lr
+python run.py tune-select --config study.json --stage-name lr
+
+# 5. Five sizes x five seeds = 25 independent final runs, with test evaluation.
+python run.py train-scaling --config study.json
+
+# 6. Data-size curve, CSV and fitted rates.
+python run.py scaling-report --config study.json
+
+# 7. Seed variability and per-family errors at each training size.
+for n in 50 100 200 400 800; do
+    python run.py summarize --config study.json --train-size "$n"
+done
+
+# 8. Figures, fixed OOD evaluation and timing of one selected final run.
+python run.py plot --config study.json --run-name scale_deeponet_N0800_seed321 --case 0
+python run.py evaluate-ood --config study.json --run-name scale_deeponet_N0800_seed321
+python run.py benchmark --config study.json --run-name scale_deeponet_N0800_seed321
+
+# 9. Stop/restart: repeat generate/tune/train-scaling as written above.
+# Manual train resume example:
+python run.py train --config study.json --train-size 200 --seed 321 --run-name try_deeponet --epochs 300 --resume
+# Settings must match the original run. Choose a new name for changed settings.
+
+# Evaluate all sizes/seeds on the same OOD sets, when desired.
+for n in 50 100 200 400 800; do
+    for s in 321 777 2026 31415 27182; do
+        run_name=$(printf 'scale_deeponet_N%04d_seed%d' "$n" "$s")
+        python run.py evaluate-ood --config study.json --run-name "$run_name" --plot-cases 0
+    done
+done
+# Each new terminal: source .venv/bin/activate
+# VS Code: open this folder through WSL and select .venv/bin/python.

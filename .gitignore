@@ -1,0 +1,26 @@
+# Generated data and study outputs
+/data/
+/outputs/*
+!/outputs/slurm/
+/outputs/slurm/*
+!/outputs/slurm/.gitkeep
+/verification/
+*.npz
+*.pt
+*.log
+
+# Local environments, caches and editor state
+.venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Document build products
+*.aux
+*.toc
+*.synctex.gz
