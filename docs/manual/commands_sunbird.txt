@@ -27,6 +27,20 @@ sbatch --account="scw7010" jobs/sunbird/gpu.sh gpu-info --config study.json
 sbatch --account="scw7010" jobs/sunbird/cpu.sh smoke
 # Check these jobs completed successfully before submitting the full study.
 
+# 1b. Every NEW PuTTY/SSH login, from the existing repository root:
+# Run this session block; environment creation/install above are one-time steps.
+module load anaconda/2024.06
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate "$PWD/env"
+export STUDY_ENV="$PWD/env"
+export STUDY_ACCOUNT="scw7010"
+# Activation does not automatically set these project-specific variables.
+# The launchers use STUDY_PYTHON, then STUDY_ENV, then env/bin/python if present,
+# then .venv/bin/python. Explicit invalid paths produce an error.
+# GEN/OOD and other job-ID variables belong to the current shell session too.
+# To resume an existing pipeline, recover IDs with squeue/sacct; do not assume
+# GEN survived logout, and inspect failed generation logs before resubmitting.
+
 # 2. Generate once, then dependent data checks/OOD generation.
 GEN=$(sbatch --parsable --account="$STUDY_ACCOUNT" jobs/sunbird/cpu.sh generate --config study.json)
 OOD=$(sbatch --parsable --account="$STUDY_ACCOUNT" --dependency="afterok:$GEN" jobs/sunbird/cpu.sh generate-ood --config study.json)

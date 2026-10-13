@@ -18,7 +18,16 @@ cd "$PROJECT_DIR"
 if [[ -n "${STUDY_MODULE:-}" ]]; then
     module load "$STUDY_MODULE"
 fi
-PYTHON="${STUDY_PYTHON:-${STUDY_ENV:-$PROJECT_DIR/.venv}/bin/python}"
+# Explicit settings take priority; discover the documented Conda env on scratch.
+if [[ -n "${STUDY_PYTHON:-}" ]]; then
+    PYTHON="$STUDY_PYTHON"
+elif [[ -n "${STUDY_ENV:-}" ]]; then
+    PYTHON="$STUDY_ENV/bin/python"
+elif [[ -x "$PROJECT_DIR/env/bin/python" ]]; then
+    PYTHON="$PROJECT_DIR/env/bin/python"
+else
+    PYTHON="$PROJECT_DIR/.venv/bin/python"
+fi
 if [[ ! -x "$PYTHON" ]]; then
     echo "Python environment missing: $PYTHON. Set STUDY_ENV or STUDY_PYTHON." >&2
     exit 2
