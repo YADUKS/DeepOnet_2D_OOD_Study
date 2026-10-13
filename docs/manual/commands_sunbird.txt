@@ -8,7 +8,16 @@ module load anaconda/2024.06
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda create --prefix "$PWD/env" python=3.11 -y --override-channels -c conda-forge
 conda activate "$PWD/env"
-python -m pip install -r requirements.txt
+python -m pip install --upgrade pip
+# Use prebuilt wheels: the system GCC may be too old to compile NumPy.
+# Pip can select older compatible wheels within requirements.txt's version bounds.
+python -m pip install --no-cache-dir --only-binary=:all: -r requirements.txt
+python -m pip check
+# If no compatible wheel is available, retain the error and inspect:
+# python --version
+# ldd --version | head -n 1
+# python -m pip config list
+# Choose package versions for that platform before proceeding to the jobs.
 export STUDY_ENV="$PWD/env"
 export STUDY_ACCOUNT="YOUR_ALLOCATION"
 mkdir -p outputs/slurm
