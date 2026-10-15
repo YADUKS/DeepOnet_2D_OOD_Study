@@ -12,7 +12,7 @@ from src.fem.geometry_spec import TRAINING_GEOMETRY_FAMILIES, OOD_GEOMETRY_FAMIL
 
 STAGES = ("generate", "compose", "train", "evaluate", "generate-ood", "evaluate-ood",
           "preview", "export-ansys", "plot-sampling", "config", "gpu-info", "smoke", "mesh-check", "plot", "benchmark",
-          "tune", "tune-select", "train-final", "train-scaling", "summarize", "compare", "scaling-report")
+          "tune", "tune-select", "report-tuning", "train-final", "train-scaling", "summarize", "compare", "scaling-report")
 
 
 def arguments():
@@ -43,6 +43,10 @@ def arguments():
     parser.add_argument("--sizes", help="Comma-separated training sizes per family")
     parser.add_argument("--seeds", help="Comma-separated model seeds; tuning defaults to 123")
     parser.add_argument("--stage-name", choices=("grid", "grid_gelu", "lr"))
+    parser.add_argument("--report-phase", choices=("all", "evaluate", "figures"), default="all",
+                        help="Tuning report: cache predictions, render cached figures, or both")
+    parser.add_argument("--report-seed", type=int, help="Saved winner checkpoint seed; defaults to the first tuning seed")
+    parser.add_argument("--report-dir", type=Path, help="Optional separate tuning report directory")
     parser.add_argument("--cell", type=int, help="One tuning cell; defaults to SLURM_ARRAY_TASK_ID when present")
     parser.add_argument("--branch-hidden", help="Comma-separated branch hidden widths")
     parser.add_argument("--trunk-hidden", help="Comma-separated trunk hidden widths")
@@ -130,7 +134,7 @@ def settings_from_arguments(args):
                 raise ValueError("Sizes and hidden widths must be positive.")
             setattr(cfg, field, value)
     cfg.resume = args.resume
-    if args.stage in ("tune", "tune-select"):
+    if args.stage in ("tune", "tune-select", "report-tuning"):
         if args.train_size is not None:
             cfg.tuning_size = args.train_size
         cfg.train_size = cfg.tuning_size
@@ -286,6 +290,11 @@ def dispatch(args, cfg):
     if args.stage == "benchmark":
         from src.analysis.benchmark import benchmark_model
         return benchmark_model(cfg, repeats=args.benchmark_repeats, epoch_repeats=args.benchmark_epochs, warmups=args.warmups)
+    if args.stage == "report-tuning":
+        from src.analysis.tuning_report import tuning_report
+        seeds = number_list(args.seeds) if args.seeds else cfg.tuning_seeds
+        return tuning_report(cfg, args.stage_name or "grid", seeds, phase=args.report_phase,
+                             model_seed=args.report_seed, directory=args.report_dir)
     if args.stage in ("tune", "tune-select"):
         from src.training.tuning import run_stage, select_stage
         seeds = number_list(args.seeds) if args.seeds else cfg.tuning_seeds

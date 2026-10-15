@@ -28,6 +28,10 @@ python run.py plot --config study.json --run-name try_deeponet --split val
 # 4. Tune at the configured count per family, in this order.
 python run.py tune --config study.json --stage-name grid
 python run.py tune-select --config study.json --stage-name grid
+# Optional: detailed results from the completed Tanh grid; no retraining.
+python run.py report-tuning --config study.json --stage-name grid
+# Figure-only rerender: add --report-phase figures (no GPU required).
+# See docs/manual/tuning_results.md for the named figures/tables/cache.
 python run.py tune --config study.json --stage-name grid_gelu
 python run.py tune-select --config study.json --stage-name grid_gelu
 python run.py tune --config study.json --stage-name lr

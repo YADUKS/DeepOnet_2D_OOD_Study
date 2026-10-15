@@ -1,4 +1,40 @@
-# Study workflow verification — 13 October 2026
+# Study workflow verification
+
+## Completed-grid reporting — 15 October 2026
+
+The full regression suite passed **36 tests** after adding the activation-grid
+report: the previous 27, one additional CLI check and eight reporting tests.
+The new checks cover a four-cell, two-epoch synthetic-field study with three ID
+test cases and three star OOD cases, validation-only selection, masked physical
+metrics, weighted validation MAE, within-family ranking, unchanged checkpoints,
+missing-cell and stale-table rejection, cache reuse and tamper detection.
+
+The miniature report produced 54 separate figures. A copied report rendered in a
+fresh process with imports of Torch, NGSolve and Netgen explicitly blocked, and
+without original datasets/checkpoints. This checks portable CPU-only rerendering.
+The miniature source fields are analytic test fixtures, not FE research results.
+
+Visual QA inspected the four-cell grid, recorded loss curve, family-error curve,
+accuracy/cost scatter and separate ground-truth/prediction/error fields. A
+separate synthetic **25-cell** grid confirmed readable discrete cells and the
+winner outline at the production grid dimensions. Individual PNG and PDF exports
+were generated at 200 dpi for the layout check. The production default remains
+600 dpi. The Sunbird CPU/GPU launcher checks and updated Bash guide syntax passed.
+
+Local records (Git ignored):
+
+- `verification/workflow_tests_report.log`: complete 36-test regression run.
+- `verification/tuning_report_tests.log`: focused report checks.
+- `verification/tuning_report_demo/`: synthetic miniature report and PDF examples.
+- `verification/tuning_report_visual_check/`: synthetic 25-cell layout examples.
+
+The user reports that all 25 production Tanh cells have completed on Sunbird.
+Those production artifacts are not available in this local checkout, so the new
+report has not yet processed the actual Sunbird grid. Run the two jobs in
+[the results guide](tuning_results.md) after updating the cluster source. No
+production network was retrained and no production data was regenerated here.
+
+## Configurable study workflow — 13 October 2026
 
 The current configurable DeepONet workflow was checked on Windows with the
 workspace environment: Python 3.14.3, NumPy 2.4.3, NGSolve 6.2.2602,

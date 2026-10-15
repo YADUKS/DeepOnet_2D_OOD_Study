@@ -7,6 +7,16 @@ from src.data.compose import get_composition_id
 
 
 class CommandTests(unittest.TestCase):
+    def test_grid_report_uses_tuning_budget_and_parses_separate_phases(self):
+        with patch.object(sys, 'argv', ['run.py', 'report-tuning', '--report-phase', 'figures',
+                                      '--report-seed', '123', '--tuning-size', '100']):
+            args = arguments()
+            cfg = settings_from_arguments(args)
+        self.assertEqual(cfg.train_size, 100)
+        self.assertEqual(cfg.epochs, cfg.tuning_epochs)
+        self.assertEqual(args.report_phase, 'figures')
+        self.assertEqual(args.report_seed, 123)
+
     def test_preview_uses_configured_source_count(self):
         for stage in ('preview', 'export-ansys'):
             with patch.object(sys, 'argv', ['run.py', stage, '--family', 'circle']):

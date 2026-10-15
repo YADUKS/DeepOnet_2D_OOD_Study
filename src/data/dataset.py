@@ -1,4 +1,4 @@
-# Adapted from prajwal1798/Feature_Extraction, commit 6c0d0e1 (GPL-3.0).
+
 # =============================================================================
 # DATASET: dataset.npz -> PYTORCH BATCHES
 #

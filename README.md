@@ -120,6 +120,7 @@ checkpoints and study results are excluded from Git.
 | [WSL / Linux / VS Code](docs/manual/commands_wsl.txt) | Bash setup and the same study sequence |
 | [Sunbird HPC](docs/manual/commands_sunbird.txt) | Environment, Slurm arrays, job dependencies and monitoring |
 | [Study protocol](docs/manual/study_workflow.md) | Sampling, selection, normalisation, restarting and output files |
+| [Completed Tanh-grid results](docs/manual/tuning_results.md) | Discrete grid maps, separate ID/OOD figures, error tables and Sunbird commands |
 | [Adding a training shape](docs/manual/adding_geometry.md) | Registry interface and a complete kite-shaped cavity example |
 | [Verification record](docs/manual/verification.md) | Executed checks and platform limitations |
 
@@ -449,13 +450,15 @@ larger study. Details are in the [protocol guide](docs/manual/study_workflow.md)
 - **Process separation:** FE generation and neural-network stages run separately
   to avoid native-library conflicts in affected Windows environments.
 
-The workflow passed **27 regression tests**, the miniature CPU study, GPU checks,
+The workflow passed **36 regression tests**, the miniature CPU study, GPU checks,
 a new-shape example and relocated-data evaluation. Isolated CPU/GPU launcher
 checks also passed (`bash tests/check_sunbird_launchers.sh`). The Sunbird CPU
 smoke completed successfully (job 8207500, exit code 0:0), and the A100 GPU
-compatibility check passed (job 8207507, exit code 0:0). WSL execution and full
-Sunbird GPU training remain unverified. Full research runs have not been
-performed. See the
+compatibility check passed (job 8207507, exit code 0:0). The detailed grid report
+passed a miniature end-to-end check and portable CPU-only rerendering; all figures
+are separate, and the grid maps use discrete cells. The user reports the full
+Tanh grid has finished on Sunbird; its production results have not been processed
+locally by the new reporter. WSL execution remains unverified. See the
 [verification record](docs/manual/verification.md).
 
 Historical checkpoints belong to their original workflow and cannot resume the

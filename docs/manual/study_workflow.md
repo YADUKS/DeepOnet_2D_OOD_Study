@@ -93,6 +93,7 @@ Slurm arrays assign distinct cells or size/seed combinations.
 | Individual loss/prediction figures | `outputs/figures/TAG/RUN/` |
 | Tuning heatmaps and seed/family reports | `outputs/figures/TAG/report/Nxxxx_per_family/` |
 | Scaling PDF/PNG, CSV and fitted rates | `outputs/figures/TAG/report/` |
+| Complete activation-grid report and cached fields | `outputs/reports/TAG/tanh_grid/Nxxxx_per_family/seeds_S/model_seedS/` |
 
 `summarize` (alias `compare`, now DeepONet-only) reports scaling runs at one size.
 `scaling-report` uses log-log least squares to fit error=C*N^(-alpha); N is per
@@ -107,3 +108,12 @@ budgets/settings or stale checkpoint metrics.
 
 `train-final` additionally supports standalone selected-model runs, named
 `final_deeponet_Nxxxx_seedS`; evaluate these by explicit `--run-name`.
+
+`report-tuning --stage-name grid` reports the completed Tanh study: four discrete
+grid maps, recorded convergence curves, every ID/OOD scenario's errors,
+best/median/worst case fields per family, distributions, peak errors and accuracy
+versus model size/time. It reuses the validation-selected checkpoint and performs
+no training or FE solves. Separate `--report-phase evaluate` and
+`--report-phase figures` allow GPU inference followed by CPU-only rendering.
+Each figure is a standalone named PNG/PDF. Saved test loss is one checkpoint
+score, not a per-epoch curve. See the [complete grid-results guide](tuning_results.md).

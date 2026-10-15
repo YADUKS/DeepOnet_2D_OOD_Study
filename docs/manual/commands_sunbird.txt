@@ -74,6 +74,17 @@ sbatch --account="scw7010" --dependency="afterok:$GEN" jobs/sunbird/cpu.sh mesh-
 TANH=$(sbatch --parsable --account="scw7010" --dependency="afterok:$GEN" --array=0-24 --output=outputs/slurm/tanh_%A_%a.out jobs/sunbird/gpu.sh tune --config study.json --stage-name grid)
 TANH_SELECT=$(sbatch --parsable --account="scw7010" --dependency="afterok:$TANH" jobs/sunbird/cpu.sh tune-select --config study.json --stage-name grid)
 
+# 3b. Optional detailed Tanh report (one GPU evaluation + CPU-only figures).
+# Submit together with the active grid/OOD jobs; no array is needed here.
+# If all 25 cells and OOD generation already finished, omit this old-job dependency.
+REPORT_EVAL=$(sbatch --parsable --account="$STUDY_ACCOUNT" --dependency="afterok:$TANH:$OOD" jobs/sunbird/gpu.sh report-tuning --config study.json --stage-name grid --report-phase evaluate)
+REPORT_FIGURES=$(sbatch --parsable --account="$STUDY_ACCOUNT" --dependency="afterok:$REPORT_EVAL" jobs/sunbird/cpu.sh report-tuning --config study.json --stage-name grid --report-phase figures)
+# tail -n 50 -F "outputs/slurm/ood_gpu_${REPORT_EVAL}.out"
+# tail -n 50 -F "outputs/slurm/ood_cpu_${REPORT_FIGURES}.out"
+# Results and instructions: docs/manual/tuning_results.md
+# Re-render existing predictions later, without allocating a GPU:
+# sbatch --account="$STUDY_ACCOUNT" jobs/sunbird/cpu.sh report-tuning --config study.json --stage-name grid --report-phase figures
+
 # 4. GELU grid, followed by validation-only selection.
 GELU=$(sbatch --parsable --account="scw7010" --dependency="afterok:$TANH_SELECT" --array=0-24 --output=outputs/slurm/gelu_%A_%a.out jobs/sunbird/gpu.sh tune --config study.json --stage-name grid_gelu)
 GELU_SELECT=$(sbatch --parsable --account="scw7010" --dependency="afterok:$GELU" jobs/sunbird/cpu.sh tune-select --config study.json --stage-name grid_gelu)

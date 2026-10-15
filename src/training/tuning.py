@@ -57,13 +57,13 @@ def cell_settings(cfg, stage, cell, seed):
                    resume=False)
 
 
-def check_existing(cfg):
+def check_existing(cfg, *, dataset_sha256=None):
     """A finished run can be skipped only when its data/settings still match."""
     path = Path(cfg.log_outdir) / 'training_summary.json'
     if not path.exists():
         return False
     summary = json.loads(path.read_text(encoding='utf-8'))
-    if summary['dataset_sha256'] != file_digest(cfg.dataset_path):
+    if summary['dataset_sha256'] != (dataset_sha256 or file_digest(cfg.dataset_path)):
         raise ValueError('Existing run uses different data; choose a new run name.')
     for name in (*FAIR_SETTINGS, 'lr', 'training_seed', 'deeponet_activation', 'latent_dim'):
         if summary['settings'][name] != getattr(cfg, name):
@@ -102,8 +102,9 @@ def run_stage(cfg, stage, seeds, index=None):
             run_cell(cell_settings(cfg, stage, cell, seed))
 
 
-def select_stage(cfg, stage, seeds):
+def select_stage(cfg, stage, seeds, *, make_plots=True):
     stage_cells, rows, means = cells(cfg, stage), [], []
+    dataset_hash = file_digest(cfg.dataset_path)
     shared = None
     for index, cell in enumerate(stage_cells):
         values = []
@@ -115,8 +116,8 @@ def select_stage(cfg, stage, seeds):
                 raise FileNotFoundError(f'Cell not finished: {run.run_name}')
             summary = json.loads(summary_path.read_text())
             metrics = json.loads(metrics_path.read_text())
-            check_existing(run)
-            if summary['dataset_sha256'] != file_digest(cfg.dataset_path) or metrics['dataset_sha256'] != summary['dataset_sha256']:
+            check_existing(run, dataset_sha256=dataset_hash)
+            if summary['dataset_sha256'] != dataset_hash or metrics['dataset_sha256'] != summary['dataset_sha256']:
                 raise ValueError('Tuning cells use different data.')
             if metrics['checkpoint_sha256'] != file_digest(run.model_path):
                 raise ValueError('Validation metrics are stale for a tuning checkpoint.')
@@ -140,15 +141,16 @@ def select_stage(cfg, stage, seeds):
                       'val_relative_l2_sd': float(np.std([r['val_relative_l2'] for r in values], ddof=1)) if len(values)>1 else None})
     best = min(means, key=lambda row: row['val_relative_l2'])
     record = {**best, 'stage': stage, 'seeds': list(seeds), 'train_size_per_family': cfg.tuning_size,
-              'dataset_sha256': file_digest(cfg.dataset_path), 'training_settings': shared,
+              'dataset_sha256': dataset_hash, 'training_settings': shared,
               'criterion': 'lowest mean validation mean-case relative L2 (kelvin)',
               'test_used_for_selection': False, 'cells': means}
     folder = tuning_dir(cfg)
     folder.mkdir(parents=True, exist_ok=True)
     write_rows(folder / f'deeponet_{stage}_cells.csv', rows)
     winner_path(cfg, stage).write_text(json.dumps(record, indent=2), encoding='utf-8')
-    from src.analysis.report import plot_tuning
-    plot_tuning(cfg, stage, record)
+    if make_plots:
+        from src.analysis.report import plot_tuning
+        plot_tuning(cfg, stage, record)
     print(json.dumps({k: v for k,v in record.items() if k != 'cells'}, indent=2))
     return record
 
