@@ -1,5 +1,20 @@
 # Study workflow verification
 
+## Sunbird OOD generation recovery — user reported
+
+OOD generation job 8208460 failed with signal 11 (`ExitCode 0:11`) after logging
+20 accepted star cases. That progress count precedes final family dataset writing
+and is not a completion check. The user subsequently reported successful
+completion after retrying with `--cpus-per-task=1`, `OPENBLAS_NUM_THREADS=1`,
+`MKL_NUM_THREADS=1` and `PYTHONFAULTHANDLER=1`. The retry job ID and its accounting
+output were not supplied; the precise native crash cause remains unconfirmed.
+
+The Sunbird manual now uses that configuration for FE generation submissions,
+while retaining the CPU launcher's existing allocation for plotting/reporting.
+The results guide includes OOD recovery, job-completion checks and replacement
+of report dependencies after a failed generation job. This is a documentation
+change; solver, sampling, dataset identities and model code are unchanged.
+
 ## Completed-grid reporting — 15 October 2026
 
 The full regression suite passed **36 tests** after adding the activation-grid

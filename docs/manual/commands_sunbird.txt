@@ -64,8 +64,13 @@ export STUDY_ACCOUNT="scw7010"
 # Exported variables are captured when submitting; changed values affect new jobs.
 
 # 2. Generate once, then dependent data checks/OOD generation.
-GEN=$(sbatch --parsable --account="$STUDY_ACCOUNT" jobs/sunbird/cpu.sh generate --config study.json)
-OOD=$(sbatch --parsable --account="$STUDY_ACCOUNT" --dependency="afterok:$GEN" jobs/sunbird/cpu.sh generate-ood --config study.json)
+# Use one CPU for FE generation: the user reported successful OOD completion
+# with this configuration after a multi-threaded job failed with signal 11.
+# The precise native crash cause is unconfirmed. Keep crash diagnostics enabled.
+# These thread limits apply to the submitted generation jobs only; plotting and
+# GPU submissions retain their usual CPU allocations. Cached FE cases are reused.
+GEN=$(sbatch --parsable --account="$STUDY_ACCOUNT" --cpus-per-task=1 --export=ALL,PYTHONFAULTHANDLER=1,OPENBLAS_NUM_THREADS=1,MKL_NUM_THREADS=1 jobs/sunbird/cpu.sh generate --config study.json)
+OOD=$(sbatch --parsable --account="$STUDY_ACCOUNT" --cpus-per-task=1 --export=ALL,PYTHONFAULTHANDLER=1,OPENBLAS_NUM_THREADS=1,MKL_NUM_THREADS=1 --dependency="afterok:$GEN" jobs/sunbird/cpu.sh generate-ood --config study.json)
 sbatch --account="scw7010" --dependency="afterok:$GEN" jobs/sunbird/cpu.sh plot-sampling --config study.json
 sbatch --account="scw7010" --dependency="afterok:$GEN" jobs/sunbird/cpu.sh preview --config study.json --family circle --case 0
 sbatch --account="scw7010" --dependency="afterok:$GEN" jobs/sunbird/cpu.sh mesh-check --config study.json
@@ -121,3 +126,8 @@ squeue -u "$USER"
 # rejections are recorded in generation_failures.json; an exhausted pool prints
 # its first rejection and the full diagnostic-file path in the job log.
 # In a new login, re-export STUDY_ENV, STUDY_PYTHON and STUDY_ACCOUNT.
+# A generation progress line such as 20/20 precedes final dataset writing.
+# Confirm sacct reports COMPLETED and ExitCode 0:0 before considering it done.
+# On a signal-11 failure, retry the one-CPU generation command above without
+# --force; cached cases are reused. If it fails again, inspect the fault trace.
+# OOD-only recovery and fresh report submissions: docs/manual/tuning_results.md

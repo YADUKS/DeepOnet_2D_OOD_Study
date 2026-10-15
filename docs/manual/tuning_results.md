@@ -55,6 +55,45 @@ Slurm jobs use the explicit interpreter above; environment activation is optiona
 If evaluation fails, inspect its log, fix that error and resubmit both jobs with
 the new evaluation ID. An `afterok` dependency cannot run after a failed job.
 
+## Missing OOD data or a generation crash on Sunbird
+
+If evaluation reports `Missing OOD dataset`, first finish `generate-ood` with the
+same `study.json`. A file may be absent because generation never completed or
+because the existing source belongs to different configuration settings. Keep
+the configured physics, geometry ranges and sampling settings unchanged.
+
+The user reported that OOD generation completed after retrying with one CPU and
+one thread for OpenBLAS/MKL, following a signal-11 failure. This is the successful
+recovery configuration; it does not establish the exact native crash cause.
+From the repository, with `STUDY_ENV`, `STUDY_PYTHON` and `STUDY_ACCOUNT` set as
+above, submit generation separately:
+
+```bash
+OOD=$(sbatch --parsable --account="$STUDY_ACCOUNT" \
+  --cpus-per-task=1 \
+  --export=ALL,PYTHONFAULTHANDLER=1,OPENBLAS_NUM_THREADS=1,MKL_NUM_THREADS=1 \
+  jobs/sunbird/cpu.sh generate-ood --config study.json)
+echo "OOD generation job: $OOD"
+tail -n 80 -F "outputs/slurm/ood_cpu_${OOD}.out"
+# Ctrl+C stops tail. Check the job itself afterwards:
+sacct -j "$OOD" --format=JobID,State,ExitCode,Elapsed
+```
+
+The CPU launcher passes the one-CPU allocation to NGSolve through `--cpu-threads`.
+The environment limits above apply to this generation job; its existing FE cache
+is reused. Leave `--force` off when recovering an interrupted run.
+
+A line such as `[star/ood 20/20]` is printed before the final family dataset is
+written. Confirm the complete job is `COMPLETED` with exit code `0:0`. If another
+crash occurs, retain the log with its enabled Python fault trace for diagnosis.
+
+After successful generation, submit the two report jobs from the first section
+again, using a fresh evaluation ID. Cancel obsolete report jobs still showing
+`DependencyNeverSatisfied`, using their actual IDs from `squeue -u "$USER"`.
+Dependencies on a failed job do not switch to the successful retry automatically.
+Completed OOD datasets and trained grid checkpoints can be used immediately;
+this documentation update does not require rerunning generation or training.
+
 ## Windows / WSL / local VS Code
 
 With the project's environment active, use the same command on either platform:
