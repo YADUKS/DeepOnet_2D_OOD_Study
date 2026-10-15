@@ -30,7 +30,9 @@ def arguments():
     parser.add_argument("--composition-id", help="Use a previously composed dataset/model ID")
     parser.add_argument("--run-name", help="Separate model run inside the composition results")
     parser.add_argument("--study-name", help="Readable study folder prefix; data/checkpoint identity is unchanged")
-    parser.add_argument("--dry-run", action="store_true", help="Preview rename-outputs without moving folders")
+    parser.add_argument("--dry-run", action="store_true", help="Preview rename-outputs without moving files or folders")
+    parser.add_argument("--merge-existing", action="store_true",
+                        help="rename-outputs: merge missing entries, retain identical copies, reject different files")
     parser.add_argument("--data-root", help="Dataset root, absolute or relative to this repository")
     parser.add_argument("--results-root", help="Results root, absolute or relative to this repository")
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"))
@@ -247,7 +249,7 @@ def smoke():
 def dispatch(args, cfg):
     if args.stage == "rename-outputs":
         from src.analysis.output_names import rename_outputs
-        return rename_outputs(cfg, dry_run=args.dry_run)
+        return rename_outputs(cfg, dry_run=args.dry_run, merge_existing=args.merge_existing)
     if args.stage == "generate":
         from src.data.generate import generate_selected_simple_geometry_datasets
         generated = generate_selected_simple_geometry_datasets(cfg)

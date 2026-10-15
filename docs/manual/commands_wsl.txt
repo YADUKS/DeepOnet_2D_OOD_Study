@@ -16,6 +16,8 @@ cp docs/manual/study.example.json study.json
 # Optional, with no queued/running jobs reading these folders:
 # python run.py rename-outputs --config study.json --dry-run
 # python run.py rename-outputs --config study.json
+# If both roots exist, review: python run.py rename-outputs --config study.json --merge-existing --dry-run
+# Then consolidate: python run.py rename-outputs --config study.json --merge-existing
 
 # 2. Generate once; includes composition and overlap checks.
 python run.py generate --config study.json

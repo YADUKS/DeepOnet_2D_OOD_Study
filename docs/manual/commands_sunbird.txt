@@ -32,6 +32,9 @@ cp docs/manual/study.example.json study.json
 # After updating an existing checkout, wait for its jobs to finish, then optionally:
 # "$STUDY_PYTHON" run.py rename-outputs --config study.json --dry-run
 # "$STUDY_PYTHON" run.py rename-outputs --config study.json
+# If old and readable roots both exist, review the explicit merge preview first:
+# "$STUDY_PYTHON" run.py rename-outputs --config study.json --merge-existing --dry-run
+# "$STUDY_PYTHON" run.py rename-outputs --config study.json --merge-existing
 # Existing hash-only paths remain readable without renaming.
 sbatch --account="scw7010" jobs/sunbird/gpu.sh gpu-info --config study.json
 sbatch --account="scw7010" jobs/sunbird/cpu.sh smoke

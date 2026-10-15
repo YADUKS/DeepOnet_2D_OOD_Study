@@ -113,8 +113,37 @@ are not rewritten. Old report subfolders such as `tanh_grid/N0200_per_family`
 are preserved and remain discoverable after their study root is renamed. Fresh
 reports use the descriptive stage/size names shown above.
 
-The command checks every destination before the first move and refuses to merge
-or overwrite existing roots. If both an old and a readable root already exist,
-keep automatic lookup or choose a new consistent study label before renaming.
-Do not rename folders while a queued/running job may read or write them. No
-generation or retraining is required for this naming change.
+The command checks every destination before the first move. By default it refuses
+to combine existing roots. Do not rename folders while a queued/running job may
+read or write them. No generation or retraining is required for this naming change.
+
+### When both old and readable folders already exist
+
+This can happen when the grid was trained before readable names were added, then
+new reporting commands created readable output folders. The plain rename command
+stops without moving any files. Automatic legacy lookup remains available, or
+you can explicitly consolidate missing outputs into the readable folders:
+
+```bash
+./env/bin/python run.py rename-outputs --config study.json --merge-existing --dry-run
+./env/bin/python run.py rename-outputs --config study.json --merge-existing
+```
+
+Run the second command only after reviewing a successful preview. It:
+
+- Moves entries whose destination does not exist, including missing files inside
+  an existing run folder. Existing readable results stay in place.
+- Compares matching files by size and SHA-256. Identical files are already
+  available in the readable folder; their legacy copies are retained.
+- Stops before moving anything if a matching file has different contents or a
+  file/directory mismatch. The error lists conflicting paths for review. Neither
+  version is overwritten or deleted.
+- Rejects linked paths, checks resolved paths stay under the output root, and
+  rolls back earlier moves if a later move fails. Jobs must remain stopped.
+
+Only empty legacy directories are removed after successful moves. Legacy roots
+can remain if they contain verified identical copies; this is expected. Repeating
+the command safely skips these copies. File contents, prediction-cache hashes,
+datasets and FE caches are preserved. Names of stage/run subfolders are preserved
+as in the plain rename. If conflicts are reported, keep both versions and inspect
+those files before choosing what to retain; do not use a forced overwrite.

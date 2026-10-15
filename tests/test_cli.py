@@ -1,7 +1,7 @@
 import sys
 import unittest
 from unittest.mock import patch
-from run import arguments, settings_from_arguments
+from run import arguments, dispatch, settings_from_arguments
 from src.config import Settings
 from src.data.compose import get_composition_id
 
@@ -14,6 +14,14 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(cfg.study_name, 'paper_study')
         self.assertTrue(args.dry_run)
         self.assertEqual(get_composition_id(cfg), get_composition_id(Settings()))
+
+    def test_merge_existing_preview_is_passed_to_rename_command(self):
+        with patch.object(sys, 'argv', ['run.py', 'rename-outputs', '--merge-existing', '--dry-run']):
+            args = arguments()
+            cfg = settings_from_arguments(args)
+        with patch('src.analysis.output_names.rename_outputs', return_value=[]) as rename:
+            self.assertEqual(dispatch(args, cfg), [])
+        rename.assert_called_once_with(cfg, dry_run=True, merge_existing=True)
 
     def test_grid_report_uses_tuning_budget_and_parses_separate_phases(self):
         with patch.object(sys, 'argv', ['run.py', 'report-tuning', '--report-phase', 'figures',

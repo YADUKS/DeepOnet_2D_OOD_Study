@@ -1,5 +1,24 @@
 # Study workflow verification
 
+## Consolidating existing output roots — 15 October 2026
+
+The focused CLI/output-naming checks passed **25 tests**. Eleven new checks cover
+the explicit `rename-outputs --merge-existing` option, preserving existing readable
+results and source datasets, a preview without changes, identical legacy copies,
+different-file and file/directory conflicts before any move, nested links and
+Windows junctions, rollback after filesystem/path failures, concurrent destination
+creation, and completed report-cache discovery/hash validation after merging.
+The original whole-root rename behaviour remains available without the new flag.
+
+Only temporary test folders were consolidated locally. Production Sunbird output
+folders have not been moved by this agent. Run the preview with all jobs stopped
+before applying the migration to that study. The updated platform command guides
+and [folder guide](output_folders.md#when-both-old-and-readable-folders-already-exist)
+explain how to handle both old and readable roots without deleting file copies
+or overwriting different results.
+
+Local record (Git ignored): `verification/output_merge_tests.log`.
+
 ## Optional Cartesian and FE-vertex reporting — 15 October 2026
 
 The full regression suite passed **58 tests**, including eleven new tests for
