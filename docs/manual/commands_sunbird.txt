@@ -106,8 +106,19 @@ REPORT_FIGURES=$(sbatch --parsable --account="$STUDY_ACCOUNT" --dependency="afte
 # 4. GELU grid, followed by validation-only selection.
 GELU=$(sbatch --parsable --account="scw7010" --dependency="afterok:$TANH_SELECT" --array=0-24 --output=outputs/slurm/gelu_%A_%a.out jobs/sunbird/gpu.sh tune --config study.json --stage-name grid_gelu)
 GELU_SELECT=$(sbatch --parsable --account="scw7010" --dependency="afterok:$GELU" jobs/sunbird/cpu.sh tune-select --config study.json --stage-name grid_gelu)
+#To generate reports, use the following 
+
+REPORT_EVAL=$(sbatch --parsable --account="scw7010" jobs/sunbird/gpu.sh report-tuning --config study.json --stage-name grid_gelu --report-phase evaluate)
+echo "GELU evaluation job: $REPORT_EVAL"
+
+REPORT_FIGURES=$(sbatch --parsable --account="scw7010" --dependency="afterok:$REPORT_EVAL" jobs/sunbird/cpu.sh report-tuning --config study.json --stage-name grid_gelu --report-phase figures)
+echo "GELU figures job: $REPORT_FIGURES"
+
 
 # 5. Three learning rates at the better architecture/activation winner.
+# Compares the best Tanh and best GELU networks by their mean validation relative L2 error. It keeps the winning architecture and activation, then trains it using #three initial learning rates.
+# This CPU job waits until all three GPU tasks finish successfully, then selects the learning rate with the lowest mean validation relative L2 error
+
 LR=$(sbatch --parsable --account="scw7010" --dependency="afterok:$GELU_SELECT" --array=0-2 --output=outputs/slurm/lr_%A_%a.out jobs/sunbird/gpu.sh tune --config study.json --stage-name lr)
 LR_SELECT=$(sbatch --parsable --account="scw7010" --dependency="afterok:$LR" jobs/sunbird/cpu.sh tune-select --config study.json --stage-name lr)
 
