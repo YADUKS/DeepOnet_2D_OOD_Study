@@ -79,7 +79,11 @@ Slurm arrays assign distinct cells or size/seed combinations.
 
 ## Reports and files
 
-`TAG=design_space_<composition ID>`; `RUN` includes architecture stage or size/seed.
+`TAG=deeponet_2d_ood_9families_pool800_<composition ID>` for the default study.
+The label, included-family count and pool size follow the configuration;
+`study_name` changes only the readable prefix. `RUN` includes architecture stage
+or size/seed. Existing `design_space_<ID>` run paths are still found automatically.
+See [readable folders and optional renaming](output_folders.md).
 
 | Artifact | Location |
 |---|---|
@@ -91,9 +95,10 @@ Slurm arrays assign distinct cells or size/seed combinations.
 | Validation/test/OOD per-case CSV and summaries | `outputs/study_results/TAG/RUN/` |
 | Tuning CSV and selected JSON | `outputs/study_results/TAG/tuning/Nxxxx_per_family/` |
 | Individual loss/prediction figures | `outputs/figures/TAG/RUN/` |
-| Tuning heatmaps and seed/family reports | `outputs/figures/TAG/report/Nxxxx_per_family/` |
-| Scaling PDF/PNG, CSV and fitted rates | `outputs/figures/TAG/report/` |
-| Complete activation-grid report and cached fields | `outputs/reports/TAG/tanh_grid/Nxxxx_per_family/seeds_S/model_seedS/` |
+| Basic Tanh/GELU/LR comparisons | `outputs/figures/TAG/study_reports/<stage>/trainN_per_family/` |
+| Seed/family reports | `outputs/figures/TAG/study_reports/seed_variability_study/trainN_per_family/` |
+| Scaling PDF/PNG, CSV and fitted rates | `outputs/figures/TAG/study_reports/dataset_size_study/` |
+| Complete activation-grid report and cached fields | `outputs/reports/TAG/tanh_neurons_layers_grid/trainN_per_family/seeds_S/model_seedS/` |
 
 `summarize` (alias `compare`, now DeepONet-only) reports scaling runs at one size.
 `scaling-report` uses log-log least squares to fit error=C*N^(-alpha); N is per
@@ -117,3 +122,11 @@ no training or FE solves. Separate `--report-phase evaluate` and
 `--report-phase figures` allow GPU inference followed by CPU-only rendering.
 Each figure is a standalone named PNG/PDF. Saved test loss is one checkpoint
 score, not a per-epoch curve. See the [complete grid-results guide](tuning_results.md).
+
+`report_field_methods` selects Cartesian field plots, direct FE-vertex fields,
+or both for this report. Primary Cartesian metrics and case rankings remain
+fixed. FE inference uses the same checkpoint at saved mesh vertices, with a
+separate cache, equal-vertex-weight metrics and case-by-case comparison table.
+Temperature legends use ground truth only and are shared across the enabled
+methods for each case. Once both caches exist, switching field methods requires
+only the CPU figures phase. No generation or retraining is needed.

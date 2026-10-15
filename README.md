@@ -121,6 +121,7 @@ checkpoints and study results are excluded from Git.
 | [Sunbird HPC](docs/manual/commands_sunbird.txt) | Environment, Slurm arrays, job dependencies and monitoring |
 | [Study protocol](docs/manual/study_workflow.md) | Sampling, selection, normalisation, restarting and output files |
 | [Completed Tanh-grid results](docs/manual/tuning_results.md) | Discrete grid maps, separate ID/OOD figures, error tables and Sunbird commands |
+| [Readable output folders](docs/manual/output_folders.md) | Study labels, parameter names and renaming existing outputs safely |
 | [Adding a training shape](docs/manual/adding_geometry.md) | Registry interface and a complete kite-shaped cavity example |
 | [Verification record](docs/manual/verification.md) | Executed checks and platform limitations |
 
@@ -365,7 +366,11 @@ Starting defaults are `compute` for CPU jobs and `accel_ai` / A100 for GPU jobs.
 
 ## 5. Where the results go
 
-`TAG` means `design_space_<composition ID>`. `RUN` identifies a tuning cell or
+`TAG` means `deeponet_2d_ood_9families_pool800_<composition ID>` for the default
+configuration; `study_name` controls the readable prefix. The suffix distinguishes
+different scientific configurations. Existing `design_space_<ID>` runs remain
+discoverable. [Naming and optional renaming](docs/manual/output_folders.md) require
+no regeneration or retraining. `RUN` identifies a tuning cell or
 size/seed combination, for example `scale_deeponet_N0800_seed321`.
 
 | Artifact | Location |
@@ -378,8 +383,10 @@ size/seed combination, for example `scale_deeponet_N0800_seed321`.
 | Validation, test and OOD metrics | `outputs/study_results/TAG/RUN/` |
 | Loss and prediction figures | `outputs/figures/TAG/RUN/` |
 | Tuning tables and selected settings | `outputs/study_results/TAG/tuning/Nxxxx_per_family/` |
-| Tuning heatmaps and seed/family reports | `outputs/figures/TAG/report/Nxxxx_per_family/` |
-| Scaling curve, CSV and fitted rates | `outputs/figures/TAG/report/` |
+| Basic Tanh/GELU/LR comparisons | `outputs/figures/TAG/study_reports/<stage>/trainN_per_family/` |
+| Seed/family reports | `outputs/figures/TAG/study_reports/seed_variability_study/trainN_per_family/` |
+| Scaling curve, CSV and fitted rates | `outputs/figures/TAG/study_reports/dataset_size_study/` |
+| Detailed Tanh results and cached predictions | `outputs/reports/TAG/tanh_neurons_layers_grid/trainN_per_family/seeds_S/model_seedS/` |
 
 Study figures default to PDF and 600 dpi PNG, with metrics in CSV/JSON. Use
 `--no-pdf` or `--dpi` for exploratory runs. Case-filtered evaluations write
@@ -401,6 +408,8 @@ maximum pool size. Every selected size must fit within all included families' po
 | `validation_cases_per_family`, `test_cases_per_family` | Fixed holdout counts |
 | `scaling_sizes`, `tuning_size` | Per-family sizes for final runs and tuning |
 | `study_seeds`, `tuning_seeds` | Final-run and tuning seeds |
+| `study_name` / `--study-name` | Readable output prefix; independent of dataset identity |
+| `report_field_methods` | Detailed report fields: `["cartesian"]`, `["fe_vertices"]`, both, or `[]` |
 | `--train-size N` | Select N cases per included family from the saved master pool |
 | `--cases N` | Change generated pool and matching source/composition counts |
 | `--families circle,ellipse` | Select families; use consistently throughout that study |
@@ -450,15 +459,19 @@ larger study. Details are in the [protocol guide](docs/manual/study_workflow.md)
 - **Process separation:** FE generation and neural-network stages run separately
   to avoid native-library conflicts in affected Windows environments.
 
-The workflow passed **36 regression tests**, the miniature CPU study, GPU checks,
+The workflow passed **58 regression tests**, the miniature CPU study, GPU checks,
 a new-shape example and relocated-data evaluation. Isolated CPU/GPU launcher
 checks also passed (`bash tests/check_sunbird_launchers.sh`). The Sunbird CPU
 smoke completed successfully (job 8207500, exit code 0:0), and the A100 GPU
 compatibility check passed (job 8207507, exit code 0:0). The detailed grid report
 passed a miniature end-to-end check and portable CPU-only rerendering; all figures
-are separate, and the grid maps use discrete cells. The user reports the full
-Tanh grid has finished on Sunbird; its production results have not been processed
-locally by the new reporter. WSL execution remains unverified. See the
+are separate, and the grid maps use discrete cells. Readable study names passed
+legacy-checkpoint loading and cache-preserving rename checks; the complete
+miniature study also passed with the new output paths. The user reports the full
+Tanh grid has finished on Sunbird. Optional direct FE-vertex evaluation passed
+CPU/GPU checks using saved miniature FE meshes, with matching reference-only
+colour scales and preserved Cartesian results. The production results have not
+been processed locally by the new FE reporter. WSL execution remains unverified. See the
 [verification record](docs/manual/verification.md).
 
 Historical checkpoints belong to their original workflow and cannot resume the

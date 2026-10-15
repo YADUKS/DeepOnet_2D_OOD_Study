@@ -1,5 +1,6 @@
 """Completed-grid reporting: correct holdouts, one model, ranking and portable cache."""
 import json
+from dataclasses import replace
 import os
 from pathlib import Path
 import shutil
@@ -20,6 +21,44 @@ from src.analysis.tuning_report import (read_json, read_csv, write_csv, represen
                                        tuning_report)
 
 
+def synthetic_mesh(cfg, case):
+    """Conforming polygon-ring fixture, no FE solve or native mesher."""
+    from src.fem.geometry_spec import transform_points
+    from src.fem.simple_geometries import build_canonical_simple_boundary
+    from src.fem.ood_geometries import build_canonical_ood_boundary
+    builder = build_canonical_ood_boundary if case.group == 'ood' else build_canonical_simple_boundary
+    boundary = transform_points(builder(case, cfg.curved_boundary_segments), case.cx, case.cy, case.rotation, case.scale)
+    centre = np.array([case.cx, case.cy])
+    corners = np.array([[0., 0.], [cfg.Lx, 0.], [cfg.Lx, cfg.Ly], [0., cfg.Ly]])
+    angle_points = np.vstack((boundary, corners))-centre
+    angles = np.unique(np.round(np.mod(np.arctan2(angle_points[:, 1], angle_points[:, 0]), 2*np.pi), 12))
+    inner, outer = [], []
+    edges = np.roll(boundary, -1, axis=0)-boundary
+    start = boundary-centre
+    for angle in angles:
+        direction = np.array([np.cos(angle), np.sin(angle)])
+        cross = direction[0]*edges[:, 1]-direction[1]*edges[:, 0]
+        valid = np.abs(cross) > 1e-15
+        denominator = np.where(valid, cross, 1.)
+        t = (start[:, 0]*edges[:, 1]-start[:, 1]*edges[:, 0])/denominator
+        u = (start[:, 0]*direction[1]-start[:, 1]*direction[0])/denominator
+        selected = valid & (t > 0) & (u >= -1e-9) & (u <= 1+1e-9)
+        inner.append(centre+t[selected].min()*direction)
+        lengths = [((bound if component > 0 else 0)-coordinate)/component if abs(component) > 1e-14 else np.inf
+                   for component, coordinate, bound in zip(direction, centre, (cfg.Lx, cfg.Ly))]
+        outer.append(centre+min(lengths)*direction)
+    inner, outer = np.array(inner), np.array(outer)
+    points = np.vstack((inner, (inner+outer)/2, outer))
+    n = len(inner)
+    triangles = []
+    for ring in range(2):
+        for i in range(n):
+            j = (i+1) % n
+            a, b, c, d = ring*n+i, ring*n+j, (ring+1)*n+i, (ring+1)*n+j
+            triangles.extend([[a, c, d], [a, d, b]])
+    return points.astype(np.float32), np.asarray(triangles, dtype=np.int32), boundary.astype(np.float32)
+
+
 def synthetic_source(cfg, family, ood=False):
     """Analytic fields for testing the report, not FE solutions or research results."""
     count = 3 if ood else 11
@@ -27,11 +66,12 @@ def synthetic_source(cfg, family, ood=False):
     path.parent.mkdir(parents=True, exist_ok=True)
     x, y = np.meshgrid(np.linspace(0, cfg.Lx, cfg.Nx), np.linspace(0, cfg.Ly, cfg.Ny))
     coords = np.stack([x.ravel(), y.ravel()], axis=1).astype(np.float32)
-    records, sdfs, temperatures = [], [], []
+    records, sdfs, temperatures, fe_paths = [], [], [], []
+    (path.parent/'fe_cases').mkdir(exist_ok=True)
     for i in range(count):
         cx, cy = .012+i*.0007, .01
         parameters = {'outer_radius': .004, 'inner_ratio': .5, 'points': 5} if ood else {'diameter': .006}
-        case = GeometryCase(family, cx, cy, parameters=parameters, group='ood' if ood else 'training')
+        case = GeometryCase(family, cx, cy, parameters=parameters, case_id=i, group='ood' if ood else 'training')
         records.append(json.dumps(case.to_record()))
         angle = np.arctan2(y-cy, x-cx)
         radius = .003 + (.001*np.cos(5*angle) if ood else 0)
@@ -39,6 +79,11 @@ def synthetic_source(cfg, family, ood=False):
         sdfs.append(sdf.ravel())
         temperature = 310+80*(y/cfg.Ly)+20*np.sin(np.pi*x/cfg.Lx)+i*.5
         temperatures.append(np.where(sdf >= 0, temperature, 0).ravel())
+        points, triangles, boundary = synthetic_mesh(cfg, case)
+        fe_truth = 310+80*(points[:, 1]/cfg.Ly)+20*np.sin(np.pi*points[:, 0]/cfg.Lx)+i*.5
+        fe_paths.append(f'fe_cases/case_{i:06d}.npz')
+        np.savez(path.parent/fe_paths[-1], points=points, triangles=triangles, boundary_points=boundary,
+                 temperature=fe_truth, geometry_record_json=[records[-1]])
     sdf = np.asarray(sdfs, dtype=np.float32)
     values = dict(schema_version=[2], design=[OOD_DESIGN if ood else DESIGN], geometry_family=[family],
                   geometry_group=['ood' if ood else 'training'], training_eligible=[not ood], n_cases=[count],
@@ -46,12 +91,10 @@ def synthetic_source(cfg, family, ood=False):
                   metadata_json=records, geometry_keys=[geometry_key(record) for record in records],
                   roles=['ood']*count if ood else ['val']*3+['test']*3+['train']*5,
                   candidate_ids=np.arange(count), case_ids=np.arange(count), coords=coords,
-                  fe_paths=['fe_cases/case.npz']*count)
+                  fe_paths=fe_paths)
     for name in ('Lx', 'Ly', 'Nx', 'Ny', 'maxh', 'order', 'kappa', 'h_hole', 'T_inf', 'q_top'):
         values[name] = [getattr(cfg, name)]
     np.savez(path, **values)
-    (path.parent/'fe_cases').mkdir(exist_ok=True)
-    np.savez(path.parent/'fe_cases/case.npz', fixture=[True])
     return path
 
 
@@ -152,7 +195,8 @@ class CompletedGridTests(unittest.TestCase):
         selections = read_csv(self.report/'tables/representative_cases.csv')
         self.assertEqual(len(selections), 6)
         for row in selections:
-            self.assertEqual(len(list((self.report/row['folder']).glob('*.png'))), 4)
+            directory = self.report/row['folder']/'cartesian'/f'{row["rank"]}_case_{int(row["case_id"]):06d}'
+            self.assertEqual(len(list(directory.glob('*.png'))), 4)
 
     def test_03_cache_reuse_requires_no_inference(self):
         with patch('src.analysis.tuning_report._predict_family', side_effect=AssertionError('Unexpected inference')):
@@ -206,6 +250,137 @@ dispatch(args, settings_from_arguments(args))
                 tuning_report(self.cfg, directory=self.root/'stale_report', phase='evaluate')
         finally:
             path.write_bytes(original)
+
+    def test_07_existing_models_and_cache_survive_output_renaming(self):
+        import torch
+        from src.analysis.output_names import CATEGORIES, rename_outputs
+        from src.analysis.tuning_report import report_directory
+        from src.data.dataset import load_bundle
+        from src.training.runtime import load_checkpoint
+        from src.training.tuning import check_existing, selection
+        files = [path for category in CATEGORIES for path in
+                 (self.cfg.output_root/category/self.cfg.case_tag).rglob('*') if path.is_file()]
+        before = {str(path.relative_to(self.cfg.output_root)): file_digest(path) for path in files}
+        legacy_cache = (self.cfg.output_root/'reports'/self.cfg.legacy_case_tag/'tanh_grid'/
+                        f'N{self.cfg.tuning_size:04d}_per_family'/'seeds_123'/'model_seed123')
+        shutil.copytree(self.report, legacy_cache)
+        self.assertEqual(report_directory(self.cfg, 'grid', [123], 123), legacy_cache)
+        # Recreate a checkout that still has the original hash-only output roots.
+        for category in CATEGORIES:
+            source = self.cfg.output_root/category/self.cfg.case_tag
+            if source.exists():
+                source.rename(source.with_name(self.cfg.legacy_case_tag))
+        run = cell_settings(self.cfg, 'grid', cells(self.cfg, 'grid')[0], 123)
+        self.assertIn(self.cfg.legacy_case_tag, run.model_path)
+        self.assertTrue(check_existing(run))
+        self.assertFalse(selection(self.cfg, 'grid')['test_used_for_selection'])
+        model, checkpoint, coords = load_checkpoint(run, load_bundle(self.cfg), torch.device('cpu'))
+        self.assertEqual(checkpoint['settings']['training_seed'], 123)
+        rename_outputs(self.cfg)
+        for name, digest in before.items():
+            self.assertEqual(file_digest(self.cfg.output_root/name), digest)
+        # Renaming parent directories cannot force new inference or invalidate
+        # fingerprints of the original model/metrics/history files.
+        with patch('src.analysis.tuning_report._predict_family', side_effect=AssertionError('Unexpected inference')):
+            result = tuning_report(self.cfg, phase='evaluate')
+        expected_cache = self.cfg.output_root/'reports'/self.cfg.case_tag/legacy_cache.relative_to(
+            self.cfg.output_root/'reports'/self.cfg.legacy_case_tag)
+        self.assertEqual(Path(result), expected_cache)
+        self.assertTrue(read_json(expected_cache/'report_manifest.json')['figures_complete'])
+
+    def test_08_fe_cache_adds_queries_without_changing_cartesian_results(self):
+        cfg = replace(self.cfg, report_field_methods=('cartesian', 'fe_vertices'))
+        before = {name: file_digest(self.report/name) for name in read_json(self.report/'report_manifest.json')['cached_files']}
+        with patch('src.analysis.tuning_report._predict_family', side_effect=AssertionError('Unexpected grid inference')):
+            tuning_report(cfg, directory=self.report, phase='evaluate')
+        self.assertEqual(before, {name: file_digest(self.report/name) for name in before})
+        manifest = read_json(self.report/'fe_vertices_manifest.json')
+        self.assertTrue(manifest['query_equivalence_check']['passed'])
+        rows = read_csv(self.report/'tables/fe_vertices_case_metrics.csv')
+        self.assertEqual(len(rows), 6)
+        counts = []
+        for case, row in zip(manifest['cases'], rows):
+            with np.load(self.report/case['fields']) as saved:
+                error = saved['prediction_K']-saved['truth_K']
+                self.assertAlmostEqual(float(row['rmse_K']), np.sqrt(np.mean(error**2)), places=9)
+                self.assertEqual(int(row['points']), len(saved['points']))
+                counts.append(len(saved['points']))
+        self.assertGreater(len(set(counts)), 1)
+        with patch('src.training.runtime.predict_query_points', side_effect=AssertionError('Unexpected FE inference')):
+            tuning_report(cfg, directory=self.report, phase='evaluate')
+
+    def test_09_both_method_plots_use_identical_reference_only_scales(self):
+        cfg = replace(self.cfg, report_field_methods=('cartesian', 'fe_vertices'))
+        tuning_report(cfg, directory=self.report, phase='figures')
+        index = read_json(self.report/'figure_index.json')
+        self.assertEqual(sum('/contours/cartesian/' in f['files'][0] for f in index), 24)
+        self.assertEqual(sum('/contours/fe_vertices/' in f['files'][0] for f in index), 24)
+        for g in read_json(self.report/'report_manifest.json')['groups']:
+            base = '03_in_distribution' if g['domain'] == 'in_distribution' else '04_ood'
+            for rank, case_id in g['representatives'].items():
+                parent = self.report/base/g['family']/'contours'
+                a = read_json(parent/'cartesian'/f'{rank}_case_{case_id:06d}'/'case_details.json')
+                b = read_json(parent/'fe_vertices'/f'{rank}_case_{case_id:06d}'/'case_details.json')
+                self.assertEqual(a['color_limits'], b['color_limits'])
+                with np.load(self.report/g['fields']) as grid, np.load(self.report/b['field_source']) as fe:
+                    i = grid['case_ids'].tolist().index(case_id)
+                    truth = np.concatenate((grid['truth_K'][i][grid['mask'][i]], fe['truth_K']))
+                    self.assertEqual(a['color_limits']['temperature_K'], [float(truth.min()), float(truth.max())])
+        if os.environ.get('REPORT_FE_TEST_ARTIFACT_DIR'):
+            shutil.copytree(self.report, os.environ['REPORT_FE_TEST_ARTIFACT_DIR'], dirs_exist_ok=True)
+
+    def test_10_disabling_a_method_skips_its_figures(self):
+        for methods in [('fe_vertices',), ()]:
+            cfg = replace(self.cfg, report_field_methods=methods)
+            tuning_report(cfg, directory=self.report, phase='figures')
+            index = read_json(self.report/'figure_index.json')
+            self.assertFalse(any('/contours/cartesian/' in f['files'][0] for f in index))
+            count = sum('/contours/fe_vertices/' in f['files'][0] for f in index)
+            self.assertEqual(count, 24 if methods else 0)
+
+    def test_11_fe_cache_tamper_is_rejected_and_cartesian_only_still_works(self):
+        path = self.report/'tables/fe_vertices_case_metrics.csv'
+        original = path.read_bytes()
+        path.write_bytes(original+b'\n')
+        try:
+            with self.assertRaisesRegex(ValueError, 'FE report cache'):
+                tuning_report(replace(self.cfg, report_field_methods=('fe_vertices',)), directory=self.report, phase='figures')
+            # No FE file is opened if only the current Cartesian method is requested.
+            with patch('src.analysis.fe_report.validate_fe_cache', side_effect=AssertionError('FE disabled')):
+                tuning_report(self.cfg, directory=self.report, phase='figures')
+        finally:
+            path.write_bytes(original)
+
+    def test_12_fresh_report_can_evaluate_both_methods_without_fe_solves(self):
+        cfg = replace(self.cfg, report_field_methods=('cartesian', 'fe_vertices'))
+        destination = self.root/'fresh_both_methods'
+        with patch('src.fem.sampling.sample_geometry_case', side_effect=AssertionError('No FE solve')), \
+             patch('src.fem.sampling.sample_ood_geometry_case', side_effect=AssertionError('No OOD FE solve')):
+            tuning_report(cfg, directory=destination, phase='evaluate')
+        manifest = read_json(destination/'fe_vertices_manifest.json')
+        self.assertTrue(manifest['evaluation_complete'])
+        self.assertEqual(manifest['inference_device'], 'cpu')
+        self.assertIn('torch_version', manifest)
+
+    def test_13_fe_only_cache_renders_offline_without_torch_or_ngsolve(self):
+        destination = self.root/'portable_fe_report'
+        shutil.copytree(self.report, destination)
+        config = self.root/'portable_fe.json'
+        config.write_text(json.dumps({'report_field_methods': ['fe_vertices'], 'publish_dpi': 55, 'save_pdf_figures': False}))
+        script = '''import importlib.abc, sys
+class BlockNative(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path, target=None):
+        if fullname.split('.')[0] in ('torch', 'ngsolve', 'netgen'):
+            raise AssertionError('Offline plotting imported ' + fullname)
+sys.meta_path.insert(0, BlockNative())
+from run import arguments, settings_from_arguments, dispatch
+args = arguments()
+dispatch(args, settings_from_arguments(args))
+'''
+        subprocess.run([sys.executable, '-c', script, 'report-tuning', '--report-phase', 'figures',
+                        '--config', str(config), '--report-dir', str(destination),
+                        '--data-root', str(self.root/'missing_sources')], cwd=PROJECT_ROOT, check=True, stdout=subprocess.DEVNULL)
+        self.assertEqual(read_json(destination/'report_manifest.json')['rendered_field_methods'], ['fe_vertices'])
 
 
 if __name__ == '__main__':

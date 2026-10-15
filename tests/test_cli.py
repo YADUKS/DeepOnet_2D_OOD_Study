@@ -7,6 +7,14 @@ from src.data.compose import get_composition_id
 
 
 class CommandTests(unittest.TestCase):
+    def test_study_name_and_rename_preview_arguments(self):
+        with patch.object(sys, 'argv', ['run.py', 'rename-outputs', '--study-name', 'Paper_Study', '--dry-run']):
+            args = arguments()
+            cfg = settings_from_arguments(args)
+        self.assertEqual(cfg.study_name, 'paper_study')
+        self.assertTrue(args.dry_run)
+        self.assertEqual(get_composition_id(cfg), get_composition_id(Settings()))
+
     def test_grid_report_uses_tuning_budget_and_parses_separate_phases(self):
         with patch.object(sys, 'argv', ['run.py', 'report-tuning', '--report-phase', 'figures',
                                       '--report-seed', '123', '--tuning-size', '100']):

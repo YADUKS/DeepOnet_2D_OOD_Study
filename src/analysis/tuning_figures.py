@@ -5,6 +5,7 @@ import json
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.tri as mtri
 from matplotlib.patches import Rectangle
 import numpy as np
 
@@ -140,56 +141,114 @@ def family_errors(output, group, rows, folder):
         output.save(fig, f'{folder}/errors/{key}_by_case', label+' for every family case; marked cases ranked by relative L2.')
 
 
-def family_fields(output, group, rows, folder):
+def reference_temperature_limits(*truth_fields):
+    values = np.concatenate([np.asarray(field)[np.isfinite(field)] for field in truth_fields])
+    if not len(values):
+        raise ValueError('No finite reference temperatures for the colour scale.')
+    low, high = float(values.min()), float(values.max())
+    return [low, high if high > low else low+1e-6]
+
+
+def family_fields(output, group, rows, folder, fe_rows=None):
     with np.load(output.root/group['fields'], allow_pickle=False) as archive:
         fields = dict(archive)
     shape = (int(fields['Ny'][0]), int(fields['Nx'][0]))
     coords = fields['coords'].reshape(*shape, 2)*1000
     ids = fields['case_ids'].tolist()
     choices = {role: ids.index(case_id) for role, case_id in group['representatives'].items()}
-    selected = list(choices.values())
     true, pred = fields['truth_K'], fields['prediction_K']
-    absolute = np.abs(pred-true)
-    relative = 100*absolute/np.maximum(np.abs(true), 1e-12)
-    low = float(min(np.nanmin(true[selected]), np.nanmin(pred[selected])))
-    high = float(max(np.nanmax(true[selected]), np.nanmax(pred[selected])))
-    if high == low:
-        high = low+1e-6
-    limits = {'temperature_K': [low, high], 'absolute_error_K': [0., max(float(np.nanmax(absolute[selected])), 1e-12)],
-              'relative_error_percent': [0., max(float(np.nanmax(relative[selected])), 1e-12)]}
     selections = []
     for role, index in choices.items():
         case_id = int(fields['case_ids'][index])
         row = next(row for row in rows if int(row['case_id']) == case_id)
         metadata = json.loads(str(fields['metadata_json'][index]))
-        case_folder = f'{folder}/contours/{role}_case_{case_id:06d}'
-        write_json(output.root/case_folder/'case_details.json', {
-            'rank': role, 'case_metrics': row, 'geometry': metadata, 'color_limits': limits,
-            'checkpoint_sha256': output.manifest['provenance']['checkpoint_sha256'],
-            'field_source': group['fields'], 'grid_field': True})
+        methods = {}
+        if 'cartesian' in output.cfg.report_field_methods:
+            methods['cartesian'] = (true[index], pred[index], None, row, group['fields'])
+        if 'fe_vertices' in output.cfg.report_field_methods:
+            from .fe_report import field_path
+            name = field_path(group['domain'], group['family'], case_id)
+            with np.load(output.root/name, allow_pickle=False) as saved:
+                mesh = dict(saved)
+            fe_row = next(r for r in fe_rows if int(r['case_id']) == case_id)
+            methods['fe_vertices'] = (mesh['truth_K'], mesh['prediction_K'], mesh, fe_row, name)
+        # Only ground truth sets the limits. When both methods are active, the
+        # same reference-only range is shared across all four temperature maps.
+        bounds = reference_temperature_limits(*(entry[0] for entry in methods.values())) if methods else None
         selections.append({'domain': group['domain'], 'family': group['family'], 'rank': role,
                            'case_id': case_id, 'family_case_number': int(row['family_case_number']),
-                           'relative_l2': row['relative_l2'], 'rmse_K': row['rmse_K'], 'folder': case_folder})
-        maps = (
-            ('ground_truth_temperature_K', 'Ground-truth temperature', true[index], 'Temperature [K]', limits['temperature_K'], 'inferno'),
-            ('prediction_temperature_K', 'Predicted temperature', pred[index], 'Temperature [K]', limits['temperature_K'], 'inferno'),
-            ('absolute_error_K', 'Absolute temperature error', absolute[index], 'Absolute error [K]', limits['absolute_error_K'], 'magma'),
-            ('relative_error_percent', 'Pointwise relative temperature error', relative[index], 'Relative error [%]', limits['relative_error_percent'], 'magma'),
-        )
-        for name, title, values, label, bounds, cmap in maps:
-            fig, ax = plt.subplots(figsize=(8, 5.7), layout='constrained')
-            im = ax.pcolormesh(coords[..., 0], coords[..., 1], np.ma.masked_invalid(values.reshape(shape)),
-                               shading='nearest', cmap=cmap, vmin=bounds[0], vmax=bounds[1], rasterized=True)
-            ax.set(xlim=(0, float(fields['Lx'][0])*1000), ylim=(0, float(fields['Ly'][0])*1000),
-                   xlabel='x [mm]', ylabel='y [mm]', aspect='equal',
-                   title=f'{title}\n{group["family"].replace("_", " ").title()} | {role} L2 case {case_id} | {group["domain"].replace("_", " ")}')
-            fig.colorbar(im, ax=ax, label=label, shrink=.8)
-            ax.text(.5, -.28, f'{output.model}\nRMSE = {row["rmse_K"]:.4g} K; relative L2 = {100*row["relative_l2"]:.4g}%\n'
-                    f'Centre = ({metadata["cx"]*1000:.3g}, {metadata["cy"]*1000:.3g}) mm; rotation = {metadata["rotation"]:.3g} rad',
-                    transform=ax.transAxes, ha='center', fontsize=9)
-            output.save(fig, f'{case_folder}/{name}',
-                        f'{title}; {group["domain"]}/{group["family"]}/{role}, case {case_id}. Solid grid points only; cavity masked.')
+                           'relative_l2': row['relative_l2'], 'rmse_K': row['rmse_K'],
+                           'folder': f'{folder}/contours', 'methods': ','.join(methods)})
+        error_limits = {}
+        for key in ('absolute_error_K', 'relative_error_percent'):
+            values = [np.abs(p-t)*(100/np.maximum(np.abs(t), 1e-12) if key.endswith('percent') else 1)
+                      for t, p, _, _, _ in methods.values()]
+            error_limits[key] = [0., max([float(np.nanmax(v)) for v in values]+[1e-12])]
+        for method, (truth_case, prediction, mesh, metric, source) in methods.items():
+            case_folder = f'{folder}/contours/{method}/{role}_case_{case_id:06d}'
+            limits = {'temperature_K': bounds, **error_limits}
+            write_json(output.root/case_folder/'case_details.json', {
+                'rank': role, 'ranking_method': 'cartesian_relative_l2', 'method': method,
+                'case_metrics': metric, 'cartesian_case_metrics': row, 'geometry': metadata, 'color_limits': limits,
+                'temperature_limits_source': 'ground_truth_only_for_enabled_methods_this_case',
+                'prediction_min_K': float(np.nanmin(prediction)), 'prediction_max_K': float(np.nanmax(prediction)),
+                'checkpoint_sha256': output.manifest['provenance']['checkpoint_sha256'], 'field_source': source})
+            absolute = np.abs(prediction-truth_case)
+            maps = (
+                ('ground_truth_temperature_K', 'Ground-truth temperature', truth_case, 'Temperature [K]', bounds, 'inferno'),
+                ('prediction_temperature_K', 'Predicted temperature', prediction, 'Temperature [K]', bounds, 'inferno'),
+                ('absolute_error_K', 'Absolute temperature error', absolute, 'Absolute error [K]', error_limits['absolute_error_K'], 'magma'),
+                ('relative_error_percent', 'Pointwise relative temperature error', 100*absolute/np.maximum(np.abs(truth_case), 1e-12),
+                 'Relative error [%]', error_limits['relative_error_percent'], 'magma'),
+            )
+            method_label = 'Cartesian grid' if method == 'cartesian' else 'Direct FE vertices'
+            for name, title, values, label, scale, cmap in maps:
+                fig, ax = plt.subplots(figsize=(8, 6), layout='constrained')
+                colors = plt.get_cmap(cmap).copy()
+                colors.set_under('#2c7bb6')
+                colors.set_over('#00a676')
+                temperature = label == 'Temperature [K]'
+                if mesh is None:
+                    im = ax.pcolormesh(coords[..., 0], coords[..., 1], np.ma.masked_invalid(values.reshape(shape)),
+                                       shading='nearest', cmap=colors, vmin=scale[0], vmax=scale[1], rasterized=True)
+                else:
+                    points = mesh['points']*1000
+                    tri = mtri.Triangulation(points[:, 0], points[:, 1], triangles=mesh['triangles'])
+                    im = ax.tricontourf(tri, values, levels=np.linspace(scale[0], scale[1], 61),
+                                        cmap=colors, vmin=scale[0], vmax=scale[1],
+                                        extend='both' if temperature else 'neither')
+                ax.set(xlim=(0, float(fields['Lx'][0])*1000), ylim=(0, float(fields['Ly'][0])*1000),
+                       xlabel='x [mm]', ylabel='y [mm]', aspect='equal',
+                       title=f'{title} | {method_label}\n{group["family"].replace("_", " ").title()} | {role} case {case_id} | {group["domain"].replace("_", " ")}')
+                fig.colorbar(im, ax=ax, label=label, shrink=.8, ticks=np.linspace(scale[0], scale[1], 6),
+                             extend='both' if temperature else 'neither')
+                ax.text(.5, -.28, f'{output.model}\n{method_label} RMSE = {metric["rmse_K"]:.4g} K; relative L2 = {100*metric["relative_l2"]:.4g}%\n'
+                        f'Field min/max = {float(np.nanmin(values)):.4g} / {float(np.nanmax(values)):.4g}; ranking uses Cartesian L2',
+                        transform=ax.transAxes, ha='center', fontsize=9)
+                output.save(fig, f'{case_folder}/{name}',
+                            f'{title}; {method}; {group["domain"]}/{group["family"]}/{role}, case {case_id}. Reference-only temperature limits.')
     return selections
+
+
+def method_comparison(output):
+    rows = numeric_rows(output.root/'tables/case_method_comparison.csv')
+    for key, label, factor in (METRICS[0], METRICS[2]):
+        fig, ax = plt.subplots(figsize=(8.5, 5.6), layout='constrained')
+        for domain in ('in_distribution', 'ood'):
+            subset = [r for r in rows if r['domain'] == domain]
+            ax.scatter([r[f'cartesian_{key}']*factor for r in subset],
+                       [r[f'fe_vertices_{key}']*factor for r in subset], s=20, alpha=.65,
+                       marker='o' if domain == 'in_distribution' else '^', label=domain.replace('_', ' ').title())
+        high = max(max(r[f'{method}_{key}']*factor for r in rows) for method in ('cartesian', 'fe_vertices'))
+        ax.plot([0, max(high, 1e-12)], [0, max(high, 1e-12)], '--', color='0.4', label='Equal metric values')
+        ax.set(xlabel=f'Cartesian {label}', ylabel=f'FE-vertex {label}', title=f'Per-case metric comparison | {output.model}')
+        ax.grid(alpha=.2)
+        ax.legend(fontsize=9)
+        ax.text(.5, -.2, 'Same cases and checkpoint; different evaluation points. FE metrics use equal vertex weights.\n'
+                'Differences do not measure pointwise disagreement at identical coordinates.',
+                transform=ax.transAxes, ha='center', fontsize=9)
+        output.save(fig, f'06_method_comparison/{key}_cartesian_vs_fe_vertices',
+                    label+' by case for two different evaluation point sets; original rankings remain Cartesian.')
 
 
 def distributions(output, cases):
@@ -261,9 +320,15 @@ def report_readme(output):
              '- Temperature-rise relative L2 = ||prediction - truth|| / ||truth - ambient||; near-zero rise can make this large.',
              '- Pointwise relative error (%) = 100 |prediction - truth| / max(|truth|, 1e-12), at solid points.',
              '- Peak error is predicted maximum minus true maximum; the plotted absolute peak error uses its magnitude.',
-             '- Field figures show the saved Cartesian evaluation grid, not newly generated FE solutions. Cavities are masked.',
-             '- For each family, ground truth/prediction share a temperature scale across the three selected cases. '
-             'Each error type also shares its scale across those cases. Different families have separate scales.',
+             f'- Enabled field methods: {list(output.cfg.report_field_methods)}. Primary metrics and case rankings remain Cartesian.',
+             '- Cartesian fields use the original masked grid. FE fields query the frozen model directly at saved mesh vertices; '
+             'both reference and prediction use the original triangle connectivity and linear contour interpolation.',
+             '- Each case has reference-only temperature limits shared by ground truth and prediction. With both methods, '
+             'the same limits span their combined ground-truth samples. Predictions never expand that range. '
+             'Blue/green under/over colours and colour-bar extensions identify values outside it; actual field extrema are shown.',
+             '- Absolute/relative error ranges are shared across enabled methods of the same case. '
+             'Different cases can have different scales. FE metrics use equal vertex weights, not area-weighted FE norms.',
+             '- Existing files from disabled methods are preserved. This README and figure_index.json list only the current render.',
              '- Training/validation histories are recorded curves. The test score is a single point at the selected epoch; '
              'no test curve is fabricated and no model is retrained.', '',
              '## Tables and cached data', '']
@@ -285,6 +350,14 @@ def render_report(cfg, root):
     validate_cache(root, manifest)
     cases = numeric_rows(root/'tables/case_metrics.csv')
     grid = numeric_rows(root/'tables/grid_mean_metrics.csv')
+    fe_cases = []
+    if 'fe_vertices' in cfg.report_field_methods:
+        from .fe_report import validate_fe_cache
+        path = root/'fe_vertices_manifest.json'
+        if not path.is_file():
+            raise ValueError('FE-vertex cache is missing. Run report-tuning --report-phase evaluate with fe_vertices enabled first.')
+        validate_fe_cache(root, manifest, read_json(path))
+        fe_cases = numeric_rows(root/'tables/fe_vertices_case_metrics.csv')
     output = Figures(cfg, root, manifest)
     with plt.rc_context({'font.family': 'DejaVu Sans', 'font.size': 10, 'axes.titlesize': 12,
                          'axes.spines.top': False, 'axes.spines.right': False, 'pdf.fonttype': 42}):
@@ -296,15 +369,20 @@ def render_report(cfg, root):
             folder = f'{base}/{group["family"]}'
             rows = [r for r in cases if r['domain'] == group['domain'] and r['family'] == group['family']]
             family_errors(output, group, rows, folder)
-            selected.extend(family_fields(output, group, rows, folder))
+            fe_rows = [r for r in fe_cases if r['domain'] == group['domain'] and r['family'] == group['family']]
+            selected.extend(family_fields(output, group, rows, folder, fe_rows))
         write_csv(root/'tables/representative_cases.csv', selected)
         distributions(output, cases)
         cost_plots(output, grid)
+        if set(cfg.report_field_methods) == {'cartesian', 'fe_vertices'}:
+            method_comparison(output)
     write_json(root/'figure_index.json', output.index)
     report_readme(output)
     manifest.update(figures_complete=True, figures_created_utc=datetime.now(timezone.utc).isoformat(),
                     figure_count=len(output.index), figure_files=[p for item in output.index for p in item['files']],
-                    figure_dpi=cfg.publish_dpi, figures_saved_as_pdf=cfg.save_pdf_figures)
+                    figure_dpi=cfg.publish_dpi, figures_saved_as_pdf=cfg.save_pdf_figures,
+                    rendered_field_methods=list(cfg.report_field_methods),
+                    temperature_limits='Per case, ground truth only; shared across enabled methods.')
     write_json(root/'report_manifest.json', manifest)
     print(f'Report complete: {len(output.index)} separate figures. Open {root/"README.md"}', flush=True)
     return manifest

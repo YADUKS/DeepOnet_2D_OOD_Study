@@ -1,4 +1,6 @@
 {
+  "study_name": "deeponet_2d_ood",
+  "report_field_methods": ["cartesian", "fe_vertices"],
   "generate_geometry_families": [
     "circle",
     "ellipse",

@@ -12,6 +12,10 @@ python run.py gpu-info
 python run.py smoke
 cp docs/manual/study.example.json study.json
 # Edit the counts/families before generation; use the same JSON throughout.
+# study_name sets readable output labels; existing runs remain discoverable.
+# Optional, with no queued/running jobs reading these folders:
+# python run.py rename-outputs --config study.json --dry-run
+# python run.py rename-outputs --config study.json
 
 # 2. Generate once; includes composition and overlap checks.
 python run.py generate --config study.json
@@ -29,6 +33,7 @@ python run.py plot --config study.json --run-name try_deeponet --split val
 python run.py tune --config study.json --stage-name grid
 python run.py tune-select --config study.json --stage-name grid
 # Optional: detailed results from the completed Tanh grid; no retraining.
+# report_field_methods in study.json selects ["cartesian"], ["fe_vertices"] or both.
 python run.py report-tuning --config study.json --stage-name grid
 # Figure-only rerender: add --report-phase figures (no GPU required).
 # See docs/manual/tuning_results.md for the named figures/tables/cache.

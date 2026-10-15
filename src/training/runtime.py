@@ -176,6 +176,31 @@ def predict_tensor(model, raw_sdf, coordinates, normalization, chunk=2048):
 
 
 # =============================================================================
+# ARBITRARY TRUNK QUERY LOCATIONS (branch sensors remain fixed)
+# =============================================================================
+@torch.inference_mode()
+def predict_query_points(model, raw_branch_sdf, coordinates, raw_query_sdf, normalization, chunk=2048):
+    """Frozen branch sensors, arbitrary trunk queries. Both SDFs use the saved length scale.
+
+    coordinates: (Q, 2), already normalized as during training.
+    raw_branch_sdf: (B, Ny*Nx); raw_query_sdf: (B, Q), before SDF z-scoring.
+    """
+    if (raw_branch_sdf.ndim != 2 or coordinates.ndim != 2 or coordinates.shape[1] != 2
+            or raw_query_sdf.ndim != 2 or raw_query_sdf.shape != (raw_branch_sdf.shape[0], len(coordinates))
+            or len(coordinates) == 0 or chunk < 1):
+        raise ValueError('Expected branch (B,N), query coordinates (Q,2), local SDF (B,Q), Q>0 and chunk>0.')
+    model.eval()
+    branch = model.branch(scale_sdf(raw_branch_sdf, normalization))
+    local_sdf = scale_sdf(raw_query_sdf, normalization)
+    pieces = []
+    for first in range(0, len(coordinates), chunk):
+        last = min(first+chunk, len(coordinates))
+        trunk = build_case_dependent_trunk_input(coordinates[first:last], local_sdf[:, first:last])
+        pieces.append(model.forward_from_branch(branch, trunk))
+    return torch.cat(pieces, dim=1)
+
+
+# =============================================================================
 # VALIDATION LOSS (same masked MSE as training, no gradients)
 # =============================================================================
 @torch.inference_mode()

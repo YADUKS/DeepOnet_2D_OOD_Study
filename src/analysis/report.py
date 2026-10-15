@@ -16,11 +16,12 @@ def training_comparison_settings(training):
 
 
 def report_dir(cfg):
-    return cfg.output_root / 'figures' / cfg.case_tag / 'report'
+    return cfg.output_root / 'figures' / cfg.case_tag / 'study_reports'
 
 
 def plot_tuning(cfg, stage, result):
     import matplotlib.pyplot as plt
+    from .output_names import stage_name
     cells = result['cells']
     fig, axes = plt.subplots(1, 3, figsize=(17, 5), layout='constrained')
     metrics = (('val_relative_l2', 'Validation relative L2 (kelvin)', 'viridis_r'),
@@ -50,7 +51,7 @@ def plot_tuning(cfg, stage, result):
             ax.set(xlabel='Initial learning rate', ylabel=label)
         ax.set_title(label)
     fig.suptitle(f'{stage}: {cfg.tuning_size} training cases per family; red marks validation-relative-L2 winner')
-    save_figure(cfg, fig, report_dir(cfg) / f'N{cfg.tuning_size:04d}_per_family' / f'tuning_{stage}')
+    save_figure(cfg, fig, report_dir(cfg) / stage_name(stage) / f'train{cfg.tuning_size}_per_family' / f'tuning_{stage}')
 
 
 def collect_runs(cfg, size, seeds, prefix='scale'):
@@ -86,7 +87,7 @@ def collect_runs(cfg, size, seeds, prefix='scale'):
 def summarize(cfg, size, seeds, prefix='scale'):
     import matplotlib.pyplot as plt
     records = collect_runs(cfg, size, seeds, prefix)
-    folder = report_dir(cfg)/f'N{size:04d}_per_family'
+    folder = report_dir(cfg)/'seed_variability_study'/f'train{size}_per_family'
     rows = [{'seed': rec['seed'], 'train_size_per_family': size, 'total_training_cases': rec['training']['train_cases'],
              **{key: rec['summary'][key] for key in ('mean_case_relative_l2','mean_case_rmse_K','global_point_weighted_rmse_K','global_r2')}}
             for rec in records]
@@ -138,7 +139,7 @@ def scaling_report(cfg, sizes, seeds):
                          'rmse_K': record['summary']['mean_case_rmse_K']})
     if any(value != signatures[0] for value in signatures):
         raise ValueError('Scaling runs must use identical architecture, training settings, data and held-out cases.')
-    folder = report_dir(cfg)
+    folder = report_dir(cfg)/'dataset_size_study'
     write_rows(folder/'scaling.csv', rows)
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.5), layout='constrained')
     rates = {}

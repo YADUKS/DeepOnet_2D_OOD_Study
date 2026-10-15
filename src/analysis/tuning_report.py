@@ -50,10 +50,19 @@ def report_directory(cfg, stage, seeds, model_seed, directory=None):
         from src.config import PROJECT_ROOT
         path = Path(directory).expanduser()
         return path if path.is_absolute() else PROJECT_ROOT / path
-    name = 'tanh_grid' if stage == 'grid' else 'gelu_grid'
-    return (cfg.output_root / 'reports' / cfg.case_tag / name /
-            f'N{cfg.tuning_size:04d}_per_family' /
-            ('seeds_' + '_'.join(map(str, seeds))) / f'model_seed{model_seed}')
+    from .output_names import stage_name
+    suffix = Path('seeds_' + '_'.join(map(str, seeds))) / f'model_seed{model_seed}'
+    current = (cfg.output_root / 'reports' / cfg.case_tag / stage_name(stage) /
+               f'train{cfg.tuning_size}_per_family' / suffix)
+    if current.exists():
+        return current
+    # A completed cache remains usable before or after renaming its study root.
+    old_stage = 'tanh_grid' if stage == 'grid' else 'gelu_grid'
+    for tag in (cfg.case_tag, cfg.legacy_case_tag):
+        old = cfg.output_root/'reports'/tag/old_stage/f'N{cfg.tuning_size:04d}_per_family'/suffix
+        if old.exists():
+            return old
+    return current
 
 
 def representatives(rows):
@@ -235,6 +244,9 @@ def evaluate_report(cfg, stage, seeds, model_seed, root):
             raise ValueError('Report inputs changed. Choose a new --report-dir to keep reports separate.')
         validate_cache(root, old)
         print(f'Reusing verified report predictions: {root}', flush=True)
+        if 'fe_vertices' in cfg.report_field_methods:
+            from .fe_report import evaluate_fe_report
+            evaluate_fe_report(cfg, root, old, master, ood)
         return old
     root.mkdir(parents=True, exist_ok=True)
     print(f'Report winner: {selected["label"]}, seed {model_seed}; validation relative L2 only.', flush=True)
@@ -289,6 +301,7 @@ def evaluate_report(cfg, stage, seeds, model_seed, root):
     manifest = {'schema': SCHEMA, 'evaluation_complete': True, 'figures_complete': False,
                 'created_utc': datetime.now(timezone.utc).isoformat(), 'provenance': provenance,
                 'stage': stage, 'activation': 'tanh' if stage == 'grid' else 'gelu',
+                'study_name': cfg.study_name, 'study_folder': cfg.case_tag,
                 'tuning_size_per_family': cfg.tuning_size, 'seeds': list(seeds), 'model_seed': model_seed,
                 'selected': selected, 'selected_run': run.run_name, 'best_epoch': checkpoint['best_epoch'],
                 'checkpoint_path': str(Path(run.model_path).resolve()),
@@ -304,6 +317,9 @@ def evaluate_report(cfg, stage, seeds, model_seed, root):
                 'cached_files': {name: file_digest(root/name) for name in cached}}
     write_json(manifest_path, manifest)
     print(f'Report predictions and tables saved: {root}', flush=True)
+    if 'fe_vertices' in cfg.report_field_methods:
+        from .fe_report import evaluate_fe_report
+        evaluate_fe_report(cfg, root, manifest, master, ood, model=model, checkpoint=checkpoint, device=device)
     return manifest
 
 

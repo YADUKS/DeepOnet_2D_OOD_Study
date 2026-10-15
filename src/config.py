@@ -11,6 +11,7 @@ prefixes, and four separate OOD families.
 
 from dataclasses import dataclass, field
 import os
+import re
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -36,6 +37,8 @@ class Settings:
     # Portable storage roots and runtime choices
     data_root: str = "data"
     results_root: str = "outputs/study_results"
+    study_name: str = "deeponet_2d_ood"  # readable output prefix; not part of data identity
+    report_field_methods: tuple = ("cartesian",)  # optionally add "fe_vertices"; primary grid metrics stay fixed
     run_name: str = ""
     device: str = "auto"
     cpu_threads: int = 4
@@ -421,15 +424,22 @@ class Settings:
 
     @property
     def checkpoint_outdir(self):
-        return str(self.output_root / "checkpoints" / self.case_tag / self.run_name)
+        return str(self.existing_output_path("checkpoints", self.run_name))
 
     @property
     def log_outdir(self):
-        return str(self.output_root / "logs" / self.case_tag / self.run_name)
+        return str(self.existing_output_path("logs", self.run_name))
 
     @property
     def figure_outdir(self):
-        return str(self.output_root / "figures" / self.case_tag / self.run_name)
+        return str(self.existing_output_path("figures", self.run_name))
+
+    def existing_output_path(self, category, *parts):
+        """Prefer readable paths, but keep pre-naming model runs usable in place."""
+        current = self.output_root / category / self.case_tag
+        legacy = self.output_root / category / self.legacy_case_tag
+        current, legacy = current.joinpath(*parts), legacy.joinpath(*parts)
+        return legacy if not current.exists() and legacy.exists() else current
 
     def ensure_directories(self):
         for path in (self.outdir, self.checkpoint_outdir, self.log_outdir, self.figure_outdir):
@@ -446,9 +456,29 @@ class Settings:
             setattr(self, name, str(path if path.is_absolute() else PROJECT_ROOT / path))
         if self.run_name and (self.run_name in (".", "..") or any(c in self.run_name for c in "/\\")):
             raise ValueError("run_name must be a single directory name.")
+        if not isinstance(self.study_name, str):
+            raise ValueError("study_name must be a string.")
+        self.study_name = self.study_name.strip().lower()
+        if self.study_name and not re.fullmatch(r'[a-z0-9][a-z0-9_-]{0,47}', self.study_name):
+            raise ValueError("study_name must use 1-48 letters, digits, underscores or hyphens; start with a letter or digit.")
+        methods = self.report_field_methods
+        if (not isinstance(methods, (list, tuple)) or any(not isinstance(method, str) for method in methods)
+                or len(set(methods)) != len(methods)
+                or any(method not in ('cartesian', 'fe_vertices') for method in methods)):
+            raise ValueError('report_field_methods must contain distinct choices from cartesian and fe_vertices (or be empty).')
+        self.report_field_methods = tuple(methods)
 
     @property
     def case_tag(self) -> str:
+        if not self.study_name or str(self.training_dataset_mode).strip().lower() != "composed":
+            return self.legacy_case_tag
+        counts = [int(count) for count in self.training_geometry_counts.values() if int(count) > 0]
+        pool = str(counts[0]) if counts and len(set(counts)) == 1 else f'total{sum(counts)}'
+        composition_id = self.legacy_case_tag.removeprefix('design_space_')
+        return f'{self.study_name}_{len(counts)}families_pool{pool}_{composition_id}'
+
+    @property
+    def legacy_case_tag(self) -> str:
         if str(self.training_dataset_mode).strip().lower() == "composed":
             from src.data.compose import get_composition_id
 
@@ -461,7 +491,7 @@ class Settings:
 
     @property
     def outdir(self) -> str:
-        return str(self.study_dir / self.run_name)
+        return str(self.existing_output_path("study_results", self.run_name))
 
     @property
     def geometry_datasets_root(self) -> str:

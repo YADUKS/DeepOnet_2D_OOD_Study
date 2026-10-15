@@ -28,6 +28,11 @@ export STUDY_ACCOUNT="scw7010"
 mkdir -p outputs/slurm
 cp docs/manual/study.example.json study.json
 # Edit study.json before submission. Every submitted command uses this file.
+# study_name sets a readable output prefix. See docs/manual/output_folders.md.
+# After updating an existing checkout, wait for its jobs to finish, then optionally:
+# "$STUDY_PYTHON" run.py rename-outputs --config study.json --dry-run
+# "$STUDY_PYTHON" run.py rename-outputs --config study.json
+# Existing hash-only paths remain readable without renaming.
 sbatch --account="scw7010" jobs/sunbird/gpu.sh gpu-info --config study.json
 sbatch --account="scw7010" jobs/sunbird/cpu.sh smoke
 # Check these jobs completed successfully before submitting the full study.
@@ -80,6 +85,11 @@ TANH=$(sbatch --parsable --account="scw7010" --dependency="afterok:$GEN" --array
 TANH_SELECT=$(sbatch --parsable --account="scw7010" --dependency="afterok:$TANH" jobs/sunbird/cpu.sh tune-select --config study.json --stage-name grid)
 
 # 3b. Optional detailed Tanh report (one GPU evaluation + CPU-only figures).
+# In study.json, report_field_methods=["cartesian","fe_vertices"] enables both
+# field plots; ["cartesian"] or ["fe_vertices"] enables just that method.
+# The initial FE evaluation reads saved mesh caches and queries existing weights.
+# After that, switching methods needs only the CPU figures job. Grid metrics and
+# best/median/worst rankings remain unchanged. See docs/manual/tuning_results.md.
 # Submit together with the active grid/OOD jobs; no array is needed here.
 # If all 25 cells and OOD generation already finished, omit this old-job dependency.
 REPORT_EVAL=$(sbatch --parsable --account="$STUDY_ACCOUNT" --dependency="afterok:$TANH:$OOD" jobs/sunbird/gpu.sh report-tuning --config study.json --stage-name grid --report-phase evaluate)

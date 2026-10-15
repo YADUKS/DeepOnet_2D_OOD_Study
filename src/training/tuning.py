@@ -22,6 +22,8 @@ def winner_path(cfg, stage):
 def selection(cfg, stage):
     path = winner_path(cfg, stage)
     if not path.exists():
+        path = cfg.existing_output_path('study_results', 'tuning', f'N{cfg.tuning_size:04d}_per_family', path.name)
+    if not path.exists():
         raise FileNotFoundError(f'Select tuning stage {stage} first: {path}')
     record = json.loads(path.read_text(encoding='utf-8'))
     if record['dataset_sha256'] != file_digest(cfg.dataset_path):

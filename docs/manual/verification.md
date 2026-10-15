@@ -1,5 +1,71 @@
 # Study workflow verification
 
+## Optional Cartesian and FE-vertex reporting — 15 October 2026
+
+The full regression suite passed **58 tests**, including eleven new tests for
+arbitrary query counts, exact original-grid query equivalence on CPU, chunking,
+unchanged weights, method-switch validation, mesh validation and both-method
+reporting. Existing Cartesian prediction/metric checksums and case rankings are
+preserved when adding FE evaluation to a completed cache. FE-cache reuse and
+tamper rejection, single-method/both/neither renders, fresh reports and offline
+FE-only plotting with Torch/NGSolve/Netgen imports blocked were exercised.
+
+An integration report reused the previously generated FE smoke data and saved
+two-epoch checkpoint: two circle ID cases, two rectangle ID cases and two star
+OOD cases. Direct queries ran at each case's original mesh vertices without new
+FE solves or training. Both query paths agreed at identical Cartesian points.
+The CPU report produced 109 individual PNG/PDF figures at 140 dpi; inspection
+confirmed geometry-aligned FE contours and identical reference-only temperature
+scales for ground truth/prediction and across both enabled methods of a case.
+Separate FE vertex-weighted metrics and per-case comparisons were saved.
+
+The same six real-mesh cases passed CUDA inference on the local RTX 5070 Ti
+Laptop GPU. New FE-query execution on Sunbird/A100 has not been verified by this
+agent. These two-epoch results are functional checks, not research performance.
+Sunbird launcher checks and updated Bash-guide syntax also passed.
+
+Local records (Git ignored):
+
+- `verification/fe_methods_full_tests.log`: complete 58-test suite.
+- `verification/fe_methods_tests.log`: focused query/report tests.
+- `verification/fe_real_mesh_report.log` and `verification/fe_real_mesh_report/`:
+  both-method CPU report from existing real FE caches, including inspected PDFs.
+- `verification/fe_gpu_report_check.log`: CUDA query check on those cached meshes.
+
+See [method selection and interpretation](tuning_results.md#choose-cartesian-fields-fe-vertices-or-both).
+The example configuration enables both methods; existing configs without the new
+field keep Cartesian-only behaviour. Primary study metrics/rankings remain on
+the original Cartesian grid. FE metrics are separately labelled equal-vertex
+statistics, not area-weighted FE norms or replacements for the existing study.
+
+## Readable output names — 15 October 2026
+
+The full suite passed **47 tests**: the previous 36 plus nine output-naming tests,
+one CLI test and an end-to-end legacy-model/report-cache rename check. These
+verify readable labels, unchanged dataset/source/OOD identities, unsafe-name
+rejection, compatibility with old run/selection paths, dry runs, destination
+conflicts, resolved-path containment, preserved file checksums and cached report
+discovery before/after renaming. A real serialized test checkpoint loaded from
+the legacy layout; its moved prediction cache was reused with inference blocked.
+
+The complete miniature CPU study passed with the new names, covering generation,
+composition, Tanh/GELU/LR selection, size/seed runs, reporting and OOD evaluation.
+The new stage folders for basic grids, learning rate, seed variability and data
+size were created successfully. Sunbird launcher checks and Bash guide syntax
+also passed. The default study's local rename preview found zero matching legacy
+roots; no production output directories were moved in this checkout. The rename
+command has not been executed on the user's Sunbird study by this agent.
+
+Local records (Git ignored):
+
+- `verification/output_naming_tests_final.log`: complete 47-test run.
+- `verification/output_naming_smoke.log`: full miniature-study log.
+- `verification/study_smoke_1792070487875911800/`: miniature artifacts with
+  readable study labels and the new report-stage folders.
+
+See [output naming and existing-study renames](output_folders.md). Dataset storage,
+scientific fingerprints, sampling and trained model contents are unchanged.
+
 ## Sunbird OOD generation recovery — user reported
 
 OOD generation job 8208460 failed with signal 11 (`ExitCode 0:11`) after logging

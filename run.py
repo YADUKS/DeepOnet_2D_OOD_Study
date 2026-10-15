@@ -12,7 +12,8 @@ from src.fem.geometry_spec import TRAINING_GEOMETRY_FAMILIES, OOD_GEOMETRY_FAMIL
 
 STAGES = ("generate", "compose", "train", "evaluate", "generate-ood", "evaluate-ood",
           "preview", "export-ansys", "plot-sampling", "config", "gpu-info", "smoke", "mesh-check", "plot", "benchmark",
-          "tune", "tune-select", "report-tuning", "train-final", "train-scaling", "summarize", "compare", "scaling-report")
+          "tune", "tune-select", "report-tuning", "train-final", "train-scaling", "summarize", "compare", "scaling-report",
+          "rename-outputs")
 
 
 def arguments():
@@ -28,6 +29,8 @@ def arguments():
     parser.add_argument("--ood-cases", type=int, help="Independent LHS cases per selected OOD family")
     parser.add_argument("--composition-id", help="Use a previously composed dataset/model ID")
     parser.add_argument("--run-name", help="Separate model run inside the composition results")
+    parser.add_argument("--study-name", help="Readable study folder prefix; data/checkpoint identity is unchanged")
+    parser.add_argument("--dry-run", action="store_true", help="Preview rename-outputs without moving folders")
     parser.add_argument("--data-root", help="Dataset root, absolute or relative to this repository")
     parser.add_argument("--results-root", help="Results root, absolute or relative to this repository")
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"))
@@ -116,7 +119,7 @@ def settings_from_arguments(args):
     mappings = {"composition_id": "training_composition_id", "seed": "training_seed", "data_seed": "seed",
                 "nx": "Nx", "ny": "Ny", "dpi": "publish_dpi"}
     for name in ("composition_id", "seed", "data_seed", "nx", "ny", "maxh", "dpi", "data_root", "results_root",
-                 "run_name", "device", "cpu_threads", "epochs", "batch_size", "lr", "latent_dim"):
+                 "run_name", "study_name", "device", "cpu_threads", "epochs", "batch_size", "lr", "latent_dim"):
         value = getattr(args, name)
         if value is not None:
             setattr(cfg, mappings.get(name, name), value)
@@ -242,6 +245,9 @@ def smoke():
 
 
 def dispatch(args, cfg):
+    if args.stage == "rename-outputs":
+        from src.analysis.output_names import rename_outputs
+        return rename_outputs(cfg, dry_run=args.dry_run)
     if args.stage == "generate":
         from src.data.generate import generate_selected_simple_geometry_datasets
         generated = generate_selected_simple_geometry_datasets(cfg)
